@@ -39,19 +39,20 @@ export function getWorkspacePath(): string | undefined {
 /**
  * 指定ファイルのコメントを読み込んでUIに表示
  */
-export function loadFileComments(targetFile: string) {
+export function loadFileComments(targetFile: string, includeOutdated: boolean = true) {
   if (!uiAdapter) return;
 
   // 既存のスレッドをクリア
   uiAdapter.disposeThreadsForFile(targetFile);
 
-  // loadActive: resolved/outdated を除外
-  const comments = store.loadActive(targetFile);
+  // load: 全コメント取得
+  const comments = store.load(targetFile);
   if (!comments || !Array.isArray(comments)) return;
 
   for (const comment of comments) {
-    const isOutdated = store.isOutdated(comment);
-    if (isOutdated) continue; // Skip outdated (二重チェック)
+    // Filter based on settings
+    if (comment.resolved) continue;
+    if (!includeOutdated && comment.outdated) continue;
     uiAdapter.createThread(comment, comment.author || 'claude');
   }
 }
@@ -59,15 +60,18 @@ export function loadFileComments(targetFile: string) {
 /**
  * 全ファイルのアクティブなコメントを読み込み
  */
-export function loadAllActiveComments() {
+export function loadAllActiveComments(includeOutdated: boolean = true) {
   if (!uiAdapter) return;
 
   uiAdapter.disposeAllThreads();
 
   const files = store.getAllReviewedFiles();
   for (const file of files) {
-    const comments = store.loadActive(file);
+    const comments = store.load(file);
     for (const comment of comments) {
+      // Filter based on settings
+      if (comment.resolved) continue;
+      if (!includeOutdated && comment.outdated) continue;
       uiAdapter.createThread(comment, comment.author || 'claude');
     }
   }
@@ -79,6 +83,15 @@ export function loadAllActiveComments() {
 export function clearAll() {
   if (!uiAdapter) return;
   uiAdapter.disposeAllThreads();
+}
+
+/**
+ * 特定のスレッドを展開（開く）
+ */
+export function expandThread(targetFile: string, commentId: string) {
+  if (!uiAdapter) return;
+  const threadId = `${targetFile}:${commentId}`;
+  uiAdapter.expandThread(threadId);
 }
 
 // ============================================================
@@ -185,6 +198,13 @@ export function getAllReviewedFiles(): string[] {
 
 export function getActiveCommentCounts(): Map<string, number> {
   return store.getActiveCommentCounts();
+}
+
+/**
+ * Get all comments for a specific file (including resolved and outdated)
+ */
+export function getCommentsForFile(file: string): ReviewComment[] {
+  return store.load(file);
 }
 
 // ============================================================

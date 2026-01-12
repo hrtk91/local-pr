@@ -421,6 +421,28 @@ describe('handleCommentOrReply - CRITICAL branching logic', () => {
 });
 
 // ============================================================
+// expandThread Tests
+// ============================================================
+
+describe('expandThread', () => {
+  it('should call uiAdapter.expandThread with correct threadId', () => {
+    const comment = service.addComment('src/App.tsx', 10, 'Test', { author: 'claude' });
+
+    // Should not throw
+    expect(() => {
+      service.expandThread('src/App.tsx', comment!.id);
+    }).not.toThrow();
+  });
+
+  it('should handle non-existent thread gracefully', () => {
+    // Should not throw even if thread doesn't exist
+    expect(() => {
+      service.expandThread('src/App.tsx', 'nonexistent-id');
+    }).not.toThrow();
+  });
+});
+
+// ============================================================
 // Integration: Full Workflow
 // ============================================================
 

@@ -11,6 +11,7 @@ import * as path from 'path';
 import * as service from './commentService';
 import { createVScodeUIAdapter } from './uiAdapter';
 import { ClaudeComment } from './types';
+import { UnresolvedCommentsProvider } from './unresolvedCommentsProvider';
 
 // Re-export for external use
 export { ClaudeComment } from './types';
@@ -21,6 +22,7 @@ export { ClaudeComment } from './types';
 
 let watcher: vscode.FileSystemWatcher | undefined;
 let currentWorkspacePath: string | undefined;
+let unresolvedCommentsProvider: UnresolvedCommentsProvider | undefined;
 
 // ============================================================
 // Activation
@@ -44,6 +46,20 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(commentController);
 
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+
+  // Create Unresolved Comments TreeView (always, even without workspace)
+  // If no workspace, it will show empty
+  const workspacePath = workspaceFolder?.uri.fsPath || '';
+  console.log('[Claude Review] Creating TreeView with workspace:', workspacePath);
+  unresolvedCommentsProvider = new UnresolvedCommentsProvider(workspacePath);
+  const treeView = vscode.window.createTreeView('claudeReview.unresolvedComments', {
+    treeDataProvider: unresolvedCommentsProvider,
+    showCollapseAll: true
+  });
+  context.subscriptions.push(treeView);
+  console.log('[Claude Review] TreeView created and registered');
+
+  // Early return if no workspace - but TreeView is still registered above
   if (!workspaceFolder) {
     return;
   }
@@ -54,8 +70,8 @@ export function activate(context: vscode.ExtensionContext) {
   const uiAdapter = createVScodeUIAdapter(commentController, currentWorkspacePath);
   service.init(uiAdapter, currentWorkspacePath);
 
-  // Initial load - all active comments
-  service.loadAllActiveComments();
+  // Initial load - all active comments (include outdated by default)
+  service.loadAllActiveComments(true);
 
   // Watch .review/files/ directory for changes
   setupWatcher(context);
@@ -119,13 +135,17 @@ function registerCommands(context: vscode.ExtensionContext, uiAdapter: ReturnTyp
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('claudeReview.resolveComment', async (comment: ClaudeComment) => {
-      if (!comment.targetFile || !comment.commentId) {
+    vscode.commands.registerCommand('claudeReview.resolveComment', async (thread: vscode.CommentThread) => {
+      // CommentThread のルートコメントから ClaudeComment を取得
+      const rootComment = thread.comments[0] as ClaudeComment | undefined;
+      if (!rootComment?.targetFile || !rootComment?.commentId) {
         uiAdapter.showError('Cannot resolve comment');
         return;
       }
-      if (service.resolveComment(comment.targetFile, comment.commentId)) {
+      if (service.resolveComment(rootComment.targetFile, rootComment.commentId)) {
         uiAdapter.showInfo('Comment resolved');
+        // Refresh TreeView to remove resolved comment
+        unresolvedCommentsProvider?.refresh();
       }
     })
   );
@@ -160,6 +180,45 @@ function registerCommands(context: vscode.ExtensionContext, uiAdapter: ReturnTyp
       }
     })
   );
+
+  // Unresolved Comments TreeView commands
+  context.subscriptions.push(
+    vscode.commands.registerCommand('claudeReview.jumpToComment', async (file: string, line: number, commentId: string) => {
+      if (!currentWorkspacePath) return;
+      const uri = vscode.Uri.file(path.join(currentWorkspacePath, file));
+      const doc = await vscode.window.showTextDocument(uri);
+      const pos = new vscode.Position(line - 1, 0);
+      doc.selection = new vscode.Selection(pos, pos);
+      doc.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+
+      // Load comments for this file to display comment threads
+      // Always include outdated when jumping to a specific comment (user explicitly clicked it)
+      service.loadFileComments(file, true);
+
+      // Expand the specific thread that was clicked (important for outdated comments)
+      service.expandThread(file, commentId);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('claudeReview.refreshUnresolvedView', () => {
+      unresolvedCommentsProvider?.refresh();
+      uiAdapter.showInfo('Unresolved comments view refreshed');
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('claudeReview.toggleOutdatedFilter', () => {
+      unresolvedCommentsProvider?.toggleOutdatedFilter();
+      const state = unresolvedCommentsProvider?.getFilterState() || 'Unknown';
+
+      // Reload all comment threads with new filter state
+      const includeOutdated = unresolvedCommentsProvider?.showOutdated ?? true;
+      service.loadAllActiveComments(includeOutdated);
+
+      uiAdapter.showInfo(`Filter: ${state}`);
+    })
+  );
 }
 
 // ============================================================
@@ -191,6 +250,8 @@ async function handleCommentOrReply(
   if (result.type === 'reply') {
     if (result.success) {
       uiAdapter.showInfo('Reply added');
+      // Refresh TreeView to show new reply count
+      unresolvedCommentsProvider?.refresh();
     } else {
       uiAdapter.showError('Failed to add reply');
     }
@@ -200,6 +261,8 @@ async function handleCommentOrReply(
       // UIAdapter.populateThread でコメント設定と管理下への登録を行う
       uiAdapter.populateThread(thread, result.comment, 'user');
       uiAdapter.showInfo('Comment added');
+      // Refresh TreeView to show new comment
+      unresolvedCommentsProvider?.refresh();
     }
   }
 }
@@ -238,11 +301,15 @@ async function deleteComment(
   if (isRootComment && comment.targetFile && comment.commentId) {
     service.removeComment(comment.targetFile, comment.commentId);
     uiAdapter.showInfo('Thread deleted');
+    // Refresh TreeView to remove deleted comment
+    unresolvedCommentsProvider?.refresh();
   } else {
     // Reply deletion is UI-only for now
     const newComments = thread.comments.filter(c => c !== comment);
     thread.comments = newComments;
     uiAdapter.showInfo('Reply deleted');
+    // Refresh TreeView to update reply count
+    unresolvedCommentsProvider?.refresh();
   }
 }
 
@@ -284,7 +351,9 @@ async function showFileHistory() {
   }
 
   const relativePath = path.relative(currentWorkspacePath, editor.document.uri.fsPath).replace(/\\/g, '/');
-  service.loadFileComments(relativePath);
+  // Use current filter state from TreeView
+  const includeOutdated = unresolvedCommentsProvider?.showOutdated ?? true;
+  service.loadFileComments(relativePath, includeOutdated);
   vscode.window.showInformationMessage(`Loaded comments for ${relativePath}`);
 }
 
@@ -308,7 +377,10 @@ function setupWatcher(context: vscode.ExtensionContext) {
 
     console.log('[Claude Review] File changed:', uri.fsPath);
     setTimeout(() => {
-      service.loadAllActiveComments();
+      // Use current filter state from TreeView
+      const includeOutdated = unresolvedCommentsProvider?.showOutdated ?? true;
+      service.loadAllActiveComments(includeOutdated);
+      unresolvedCommentsProvider?.refresh();
     }, 100);
   };
 

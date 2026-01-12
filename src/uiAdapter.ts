@@ -19,6 +19,7 @@ export type UIAdapter = {
   disposeThread: (threadId: string) => void;
   disposeAllThreads: () => void;
   disposeThreadsForFile: (file: string) => void;
+  expandThread: (threadId: string) => void;
 
   // Thread取得
   getThread: (threadId: string) => { comments: readonly vscode.Comment[] } | undefined;
@@ -141,6 +142,13 @@ export function createVScodeUIAdapter(
       }
     },
 
+    expandThread: (threadId) => {
+      const thread = threads.get(threadId);
+      if (thread) {
+        thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
+      }
+    },
+
     getThread: (threadId) => {
       return threads.get(threadId);
     },
@@ -253,6 +261,10 @@ export function createMockUIAdapter(): UIAdapter & {
           threads.delete(key);
         }
       }
+    },
+
+    expandThread: (_threadId) => {
+      // Mock: no-op (テスト用なので何もしない)
     },
 
     getThread: (threadId) => {

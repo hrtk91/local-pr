@@ -11,10 +11,28 @@
     "Other"
   ],
   "activationEvents": [
-    "workspaceContains:.review"
+    "workspaceContains:.review",
+    "onView:claudeReview.unresolvedComments"
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "claudeReview",
+          "title": "Claude Review",
+          "icon": "$(comment-discussion)"
+        }
+      ]
+    },
+    "views": {
+      "claudeReview": [
+        {
+          "id": "claudeReview.unresolvedComments",
+          "name": "Unresolved Comments"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "claudeReview.refresh",
@@ -64,21 +82,33 @@
         "command": "claudeReview.resolveComment",
         "title": "Resolve",
         "icon": "$(check)"
+      },
+      {
+        "command": "claudeReview.jumpToComment",
+        "title": "Jump to Comment"
+      },
+      {
+        "command": "claudeReview.refreshUnresolvedView",
+        "title": "Refresh Unresolved Comments View",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "claudeReview.toggleOutdatedFilter",
+        "title": "Toggle Outdated Filter",
+        "icon": "$(filter)"
       }
     ],
     "menus": {
       "comments/commentThread/context": [
         {
           "command": "claudeReview.replyComment",
-          "group": "inline@1",
-          "when": "commentThread != outdated"
+          "group": "inline@1"
         }
       ],
       "comments/commentThread/title": [
         {
           "command": "claudeReview.resolveComment",
-          "group": "inline@1",
-          "when": "commentThread != outdated"
+          "group": "inline@1"
         }
       ],
       "comments/comment": [],
@@ -102,6 +132,18 @@
           "command": "claudeReview.deleteComment",
           "group": "inline@2",
           "when": "comment != outdated"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "claudeReview.toggleOutdatedFilter",
+          "when": "view == claudeReview.unresolvedComments",
+          "group": "navigation@1"
+        },
+        {
+          "command": "claudeReview.refreshUnresolvedView",
+          "when": "view == claudeReview.unresolvedComments",
+          "group": "navigation@2"
         }
       ]
     }
