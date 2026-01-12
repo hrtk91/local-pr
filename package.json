@@ -1,0 +1,125 @@
+{
+  "name": "local-pr",
+  "displayName": "Local PR",
+  "description": "Display code review comments inline in VSCode/Cursor (file-based, JSONL+gzip)",
+  "version": "1.0.0",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:.review"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "claudeReview.refresh",
+        "title": "Claude Review: Refresh Comments"
+      },
+      {
+        "command": "claudeReview.clear",
+        "title": "Claude Review: Clear All Comments"
+      },
+      {
+        "command": "claudeReview.listFiles",
+        "title": "Claude Review: List Reviewed Files"
+      },
+      {
+        "command": "claudeReview.showFileHistory",
+        "title": "Claude Review: Show File History"
+      },
+      {
+        "command": "claudeReview.createComment",
+        "title": "Add Comment"
+      },
+      {
+        "command": "claudeReview.replyComment",
+        "title": "Reply"
+      },
+      {
+        "command": "claudeReview.editComment",
+        "title": "Edit Comment",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "claudeReview.deleteComment",
+        "title": "Delete Comment",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "claudeReview.saveComment",
+        "title": "Save",
+        "icon": "$(check)"
+      },
+      {
+        "command": "claudeReview.cancelEdit",
+        "title": "Cancel",
+        "icon": "$(close)"
+      },
+      {
+        "command": "claudeReview.resolveComment",
+        "title": "Resolve",
+        "icon": "$(check)"
+      }
+    ],
+    "menus": {
+      "comments/commentThread/context": [
+        {
+          "command": "claudeReview.replyComment",
+          "group": "inline@1",
+          "when": "commentThread != outdated"
+        }
+      ],
+      "comments/commentThread/title": [
+        {
+          "command": "claudeReview.resolveComment",
+          "group": "inline@1",
+          "when": "commentThread != outdated"
+        }
+      ],
+      "comments/comment": [],
+      "comments/comment/context": [
+        {
+          "command": "claudeReview.saveComment",
+          "group": "inline@1"
+        },
+        {
+          "command": "claudeReview.cancelEdit",
+          "group": "inline@2"
+        }
+      ],
+      "comments/comment/title": [
+        {
+          "command": "claudeReview.editComment",
+          "group": "inline@1",
+          "when": "comment == editable"
+        },
+        {
+          "command": "claudeReview.deleteComment",
+          "group": "inline@2",
+          "when": "comment != outdated"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "chokidar": "^5.0.0"
+  }
+}
