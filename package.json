@@ -2,7 +2,7 @@
   "name": "local-pr",
   "displayName": "Local PR",
   "description": "Display code review comments inline in VSCode/Cursor (file-based, JSONL+gzip)",
-  "version": "1.0.0",
+  "version": "0.1.0-alpha.1",
   "publisher": "local",
   "engines": {
     "vscode": "^1.85.0"
