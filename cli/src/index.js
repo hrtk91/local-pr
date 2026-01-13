@@ -262,12 +262,29 @@ function cmdDelete(args) {
 // ============================================================
 // Install Skill
 // ============================================================
-function getSkillDirectories() {
+function getSkillDirectories(scope = 'all') {
     const home = process.env.HOME || process.env.USERPROFILE || '';
     const candidates = ['.claude', '.cursor', '.codex'];
-    return candidates
-        .map(dir => path.join(home, dir))
-        .filter(dir => fs.existsSync(dir));
+    const dirs = [];
+    if (scope === 'local' || scope === 'all') {
+        // Check current directory
+        for (const dir of candidates) {
+            const localPath = path.join(process.cwd(), dir);
+            if (fs.existsSync(localPath)) {
+                dirs.push({ path: localPath, scope: 'local' });
+            }
+        }
+    }
+    if (scope === 'global' || scope === 'all') {
+        // Check home directory
+        for (const dir of candidates) {
+            const globalPath = path.join(home, dir);
+            if (fs.existsSync(globalPath)) {
+                dirs.push({ path: globalPath, scope: 'global' });
+            }
+        }
+    }
+    return dirs;
 }
 function downloadFile(url) {
     return new Promise((resolve, reject) => {
@@ -313,37 +330,82 @@ function askUserChoice(question, choices) {
         });
     });
 }
-async function cmdInstallSkill() {
+async function cmdInstallSkill(args) {
+    // Parse options
+    const opts = {};
+    for (let i = 0; i < args.length; i += 2) {
+        if (args[i]?.startsWith('--')) {
+            opts[args[i].replace(/^--/, '')] = args[i + 1] || 'true';
+        }
+    }
     console.log('🔍 Checking for skill directories...');
-    const skillDirs = getSkillDirectories();
-    if (skillDirs.length === 0) {
-        console.error('❌ No skill directories found. Expected one of: ~/.claude, ~/.cursor, ~/.codex');
+    const scope = (opts['scope'] || 'all');
+    if (!['local', 'global', 'all'].includes(scope)) {
+        console.error('❌ Invalid --scope value. Must be one of: local, global, all');
         process.exit(1);
     }
-    console.log(`✅ Found: ${skillDirs.map(d => path.basename(d)).join(', ')}`);
+    const skillDirs = getSkillDirectories(scope);
+    if (skillDirs.length === 0) {
+        const scopeMsg = scope === 'local'
+            ? 'current directory (./.claude, ./.cursor, ./.codex)'
+            : scope === 'global'
+                ? 'home directory (~/.claude, ~/.cursor, ~/.codex)'
+                : 'current or home directory';
+        console.error(`❌ No skill directories found in ${scopeMsg}`);
+        process.exit(1);
+    }
+    // Display found directories with scope
+    const displayDirs = skillDirs.map(d => `${path.basename(d.path)} (${d.scope})`).join(', ');
+    console.log(`✅ Found: ${displayDirs}`);
     console.log('');
     let selectedDirs;
-    if (skillDirs.length === 1) {
-        selectedDirs = skillDirs;
+    // Check for --all flag
+    if (opts['all'] === 'true') {
+        selectedDirs = skillDirs.map(d => d.path);
+        console.log('Installing to all directories...');
     }
-    else {
-        // Multiple directories found - ask user
+    // Check for --dir option
+    else if (opts['dir']) {
+        const requestedDir = opts['dir'];
+        const matchedDir = skillDirs.find(d => path.basename(d.path) === requestedDir);
+        if (!matchedDir) {
+            console.error(`❌ Directory '${requestedDir}' not found. Available: ${skillDirs.map(d => path.basename(d.path)).join(', ')}`);
+            process.exit(1);
+        }
+        selectedDirs = [matchedDir.path];
+        console.log(`Installing to ${requestedDir} (${matchedDir.scope})...`);
+    }
+    // If only one directory exists, use it automatically
+    else if (skillDirs.length === 1) {
+        selectedDirs = [skillDirs[0].path];
+        console.log(`Installing to ${path.basename(skillDirs[0].path)} (${skillDirs[0].scope})...`);
+    }
+    // Multiple directories found - check if stdin is available
+    else if (process.stdin.isTTY) {
+        // Interactive mode - ask user
         const choices = [
-            ...skillDirs.map(d => path.basename(d)),
+            ...skillDirs.map(d => `${path.basename(d.path)} (${d.scope})`),
             'All of the above'
         ];
         const choice = await askUserChoice('Which directory should the skill be installed to?', choices);
         if (choice === skillDirs.length) {
             // "All of the above"
-            selectedDirs = skillDirs;
+            selectedDirs = skillDirs.map(d => d.path);
         }
         else {
-            selectedDirs = [skillDirs[choice]];
+            selectedDirs = [skillDirs[choice].path];
         }
+    }
+    // Non-interactive mode - default to global .claude, or first available
+    else {
+        const defaultDir = skillDirs.find(d => path.basename(d.path) === '.claude' && d.scope === 'global') || skillDirs[0];
+        selectedDirs = [defaultDir.path];
+        console.log(`Non-interactive mode: defaulting to ${path.basename(defaultDir.path)} (${defaultDir.scope})`);
+        console.log(`Tip: Use --scope <local|global|all>, --dir <name>, or --all to specify installation target`);
     }
     console.log('');
     console.log('📥 Downloading skill from GitHub...');
-    const skillUrl = 'https://raw.githubusercontent.com/hirotaka-taminato/local-pr/master/cli/skills/reviewing-locally/SKILL.md';
+    const skillUrl = 'https://raw.githubusercontent.com/hrtk91/local-pr/master/cli/skills/reviewing-locally/SKILL.md';
     try {
         const content = await downloadFile(skillUrl);
         for (const baseDir of selectedDirs) {
@@ -390,7 +452,7 @@ const [, , command, ...args] = process.argv;
             cmdDelete(args);
             break;
         case 'install-skill':
-            await cmdInstallSkill();
+            await cmdInstallSkill(args);
             break;
         default:
             console.log(`Local PR Review CLI
@@ -411,6 +473,10 @@ Examples:
   npx hrtk91/local-pr reply --file src/App.tsx --id 1 --message "Fixed"
   npx hrtk91/local-pr delete --file src/App.tsx --id 1
   npx hrtk91/local-pr install-skill
+  npx hrtk91/local-pr install-skill --scope global
+  npx hrtk91/local-pr install-skill --scope local
+  npx hrtk91/local-pr install-skill --dir .claude
+  npx hrtk91/local-pr install-skill --all
 `);
     }
 })();

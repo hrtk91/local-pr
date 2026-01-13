@@ -17,6 +17,11 @@ Thumbs.db
 *.swp
 *.swo
 
+# Skill directories (for testing)
+.claude/
+.cursor/
+.codex/
+
 # Test coverage
 coverage/
 

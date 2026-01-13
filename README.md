@@ -111,14 +111,27 @@ Claude CodeやCursorで使えるスキルをワンコマンドでインストー
 ### スキルのインストール
 
 ```bash
+# インタラクティブモード（ディレクトリを選択）
 npx hrtk91/local-pr install-skill
+
+# グローバル（ホームディレクトリ）にインストール
+npx hrtk91/local-pr install-skill --scope global
+
+# ローカル（プロジェクトディレクトリ）にインストール
+npx hrtk91/local-pr install-skill --scope local
+
+# 特定のディレクトリにインストール
+npx hrtk91/local-pr install-skill --dir .claude
+
+# すべてのディレクトリにインストール
+npx hrtk91/local-pr install-skill --all
 ```
 
 このコマンドは以下を実行します：
-1. `.claude/`, `.cursor/`, `.codex/` ディレクトリを自動検出
-2. 複数ある場合はユーザーに選択させる
+1. `.claude/`, `.cursor/`, `.codex/` ディレクトリを自動検出（ローカル/グローバル両方）
+2. `--scope` でローカルorグローバルを指定、`--dir` で特定のディレクトリを指定、`--all` で全てにインストール
 3. GitHubから最新のスキルをダウンロード
-4. `~/.claude/skills/reviewing-locally/SKILL.md` にインストール
+4. `~/.claude/skills/reviewing-locally/SKILL.md` (global) または `./.claude/skills/reviewing-locally/SKILL.md` (local) にインストール
 
 ### スキルの使い方
 

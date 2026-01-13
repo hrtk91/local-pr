@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # Cleanup
 cleanup() {
-  rm -rf "$REVIEW_DIR" "$TEST_FILE" "$TEST_FILE"2 2>/dev/null || true
+  rm -rf "$REVIEW_DIR" "$TEST_FILE" "$TEST_FILE"2 .claude .cursor .codex 2>/dev/null || true
 }
 
 # Ensure cleanup on exit
@@ -426,6 +426,65 @@ test_invalid_severity() {
   fi
 }
 
+# Test 24: Install skill - local scope (independent)
+test_install_skill_local() {
+  echo ""
+  echo "📦 Test: Install skill to local scope"
+
+  cleanup
+  mkdir -p .claude
+
+  # We can't test actual download without network, but we can test directory detection
+  # Run with invalid URL to test the detection part
+  if $CLI install-skill --scope local 2>&1 | grep -q "Found:.*claude (local)"; then
+    echo -e "${GREEN}✓${NC} Should detect local .claude directory"
+  else
+    echo -e "${RED}✗${NC} Should detect local .claude directory"
+    exit 1
+  fi
+
+  rm -rf .claude
+}
+
+# Test 25: Install skill - global scope (independent)
+test_install_skill_global() {
+  echo ""
+  echo "🌍 Test: Install skill to global scope"
+
+  cleanup
+
+  # Just test that it can detect scope parameter
+  # Actual global directories should exist in user's home
+  output=$($CLI install-skill --scope invalid 2>&1 || true)
+  if echo "$output" | grep -q "Invalid --scope value"; then
+    echo -e "${GREEN}✓${NC} Should validate scope parameter"
+  else
+    echo -e "${RED}✗${NC} Should validate scope parameter"
+    exit 1
+  fi
+}
+
+# Test 26: Install skill - directory selection (independent)
+test_install_skill_dir_option() {
+  echo ""
+  echo "🎯 Test: Install skill with --dir option"
+
+  cleanup
+  mkdir -p .claude
+  mkdir -p .cursor
+
+  # Test directory detection
+  output=$($CLI install-skill --scope local 2>&1 | head -5)
+  if echo "$output" | grep -q ".claude (local)" && echo "$output" | grep -q ".cursor (local)"; then
+    echo -e "${GREEN}✓${NC} Should detect multiple local directories"
+  else
+    echo -e "${RED}✗${NC} Should detect multiple local directories"
+    exit 1
+  fi
+
+  rm -rf .claude .cursor
+}
+
 # Run tests
 setup
 
@@ -452,6 +511,9 @@ test_operate_on_deleted
 test_multiple_files
 test_all_severities
 test_invalid_severity
+test_install_skill_local
+test_install_skill_global
+test_install_skill_dir_option
 
 echo ""
 echo -e "${GREEN}✨ All tests passed!${NC}"

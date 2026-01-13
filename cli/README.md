@@ -21,13 +21,28 @@ npm link
 Install the reviewing-locally skill for Claude Code or Cursor:
 
 ```bash
+# Interactive mode - choose directory
 npx hrtk91/local-pr install-skill
+
+# Install to global (home directory)
+npx hrtk91/local-pr install-skill --scope global
+
+# Install to local (project directory)
+npx hrtk91/local-pr install-skill --scope local
+
+# Install to specific directory
+npx hrtk91/local-pr install-skill --dir .claude
+
+# Install to all available directories
+npx hrtk91/local-pr install-skill --all
 ```
 
 This will:
-1. Detect your skill directory (`.claude`, `.cursor`, or `.codex`)
-2. Download the latest skill from GitHub
-3. Install to `~/.claude/skills/reviewing-locally/`
+1. Detect your skill directories (`.claude`, `.cursor`, or `.codex`) in both local and global locations
+2. Use `--scope <local|global|all>` to specify search scope (default: all)
+3. Use `--dir <name>` to specify a directory or `--all` for all directories
+4. Download the latest skill from GitHub
+5. Install to `~/.claude/skills/reviewing-locally/` (global) or `./.claude/skills/reviewing-locally/` (local)
 
 Usage in Claude Code/Cursor:
 ```
