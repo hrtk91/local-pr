@@ -15,6 +15,9 @@
     "onView:claudeReview.unresolvedComments"
   ],
   "main": "./out/extension.js",
+  "bin": {
+    "local-pr": "./cli/dist/index.js"
+  },
   "contributes": {
     "viewsContainers": {
       "panel": [
