@@ -1,0 +1,37 @@
+{
+  "name": "local-pr-cli",
+  "version": "0.1.0",
+  "description": "CLI tool for local-pr code review comments",
+  "main": "dist/index.js",
+  "bin": {
+    "local-pr": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "./test.sh",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hirotaka-taminato/local-pr.git",
+    "directory": "cli"
+  },
+  "keywords": [
+    "code-review",
+    "local-pr",
+    "vscode",
+    "cli"
+  ],
+  "author": "hirotaka-taminato",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}

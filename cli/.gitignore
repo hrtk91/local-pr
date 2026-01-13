@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.review/
+test-file.ts
+*.log
