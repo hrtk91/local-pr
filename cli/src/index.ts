@@ -7,6 +7,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
+import * as https from 'https';
+import * as readline from 'readline';
 
 // ============================================================
 // Types
@@ -266,36 +268,168 @@ function cmdDelete(args: string[]) {
 }
 
 // ============================================================
+// Install Skill
+// ============================================================
+
+function getSkillDirectories(): string[] {
+  const home = process.env.HOME || process.env.USERPROFILE || '';
+  const candidates = ['.claude', '.cursor', '.codex'];
+  return candidates
+    .map(dir => path.join(home, dir))
+    .filter(dir => fs.existsSync(dir));
+}
+
+function downloadFile(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      if (res.statusCode === 302 || res.statusCode === 301) {
+        // Follow redirect
+        if (res.headers.location) {
+          downloadFile(res.headers.location).then(resolve).catch(reject);
+          return;
+        }
+      }
+
+      if (res.statusCode !== 200) {
+        reject(new Error(`Failed to download: HTTP ${res.statusCode}`));
+        return;
+      }
+
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => { resolve(data); });
+    }).on('error', reject);
+  });
+}
+
+function askUserChoice(question: string, choices: string[]): Promise<number> {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+
+    console.log(question);
+    choices.forEach((choice, i) => {
+      console.log(`  ${i + 1}. ${choice}`);
+    });
+    console.log('');
+
+    rl.question('Select (number): ', (answer) => {
+      rl.close();
+      const num = parseInt(answer.trim());
+      if (num >= 1 && num <= choices.length) {
+        resolve(num - 1);
+      } else {
+        console.error('Invalid choice. Please try again.');
+        process.exit(1);
+      }
+    });
+  });
+}
+
+async function cmdInstallSkill() {
+  console.log('🔍 Checking for skill directories...');
+
+  const skillDirs = getSkillDirectories();
+  if (skillDirs.length === 0) {
+    console.error('❌ No skill directories found. Expected one of: ~/.claude, ~/.cursor, ~/.codex');
+    process.exit(1);
+  }
+
+  console.log(`✅ Found: ${skillDirs.map(d => path.basename(d)).join(', ')}`);
+  console.log('');
+
+  let selectedDirs: string[];
+
+  if (skillDirs.length === 1) {
+    selectedDirs = skillDirs;
+  } else {
+    // Multiple directories found - ask user
+    const choices = [
+      ...skillDirs.map(d => path.basename(d)),
+      'All of the above'
+    ];
+
+    const choice = await askUserChoice('Which directory should the skill be installed to?', choices);
+
+    if (choice === skillDirs.length) {
+      // "All of the above"
+      selectedDirs = skillDirs;
+    } else {
+      selectedDirs = [skillDirs[choice]];
+    }
+  }
+
+  console.log('');
+  console.log('📥 Downloading skill from GitHub...');
+
+  const skillUrl = 'https://raw.githubusercontent.com/hirotaka-taminato/local-pr/master/cli/skills/reviewing-locally/SKILL.md';
+
+  try {
+    const content = await downloadFile(skillUrl);
+
+    for (const baseDir of selectedDirs) {
+      const skillPath = path.join(baseDir, 'skills', 'reviewing-locally');
+      const skillFile = path.join(skillPath, 'SKILL.md');
+
+      // Create directory
+      if (!fs.existsSync(skillPath)) {
+        fs.mkdirSync(skillPath, { recursive: true });
+      }
+
+      // Write file
+      fs.writeFileSync(skillFile, content, 'utf-8');
+      console.log(`✅ Installed to ${path.relative(process.env.HOME || '', skillFile)}`);
+    }
+
+    console.log('');
+    console.log('🎉 Skill installation complete!');
+    console.log('');
+    console.log('Usage in Claude Code/Cursor:');
+    console.log('  /reviewing-locally');
+  } catch (error) {
+    console.error('❌ Failed to install skill:', error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
+// ============================================================
 // Main
 // ============================================================
 
 const [, , command, ...args] = process.argv;
 
-switch (command) {
-  case 'add':
-    cmdAdd(args);
-    break;
-  case 'list':
-    cmdList(args);
-    break;
-  case 'resolve':
-    cmdResolve(args);
-    break;
-  case 'reply':
-    cmdReply(args);
-    break;
-  case 'delete':
-    cmdDelete(args);
-    break;
-  default:
-    console.log(`Local PR Review CLI
+(async () => {
+  switch (command) {
+    case 'add':
+      cmdAdd(args);
+      break;
+    case 'list':
+      cmdList(args);
+      break;
+    case 'resolve':
+      cmdResolve(args);
+      break;
+    case 'reply':
+      cmdReply(args);
+      break;
+    case 'delete':
+      cmdDelete(args);
+      break;
+    case 'install-skill':
+      await cmdInstallSkill();
+      break;
+    default:
+      console.log(`Local PR Review CLI
 
 Commands:
-  add      Add a new comment
-  list     List comments
-  resolve  Mark comment as resolved
-  reply    Add reply to a comment
-  delete   Delete a comment
+  add           Add a new comment
+  list          List comments
+  resolve       Mark comment as resolved
+  reply         Add reply to a comment
+  delete        Delete a comment
+  install-skill Install Claude Code skill
 
 Examples:
   npx local-pr-cli add --file src/App.tsx --line 42 --message "Add null check" --severity warning
@@ -304,5 +438,7 @@ Examples:
   npx local-pr-cli resolve --file src/App.tsx --id 1
   npx local-pr-cli reply --file src/App.tsx --id 1 --message "Fixed"
   npx local-pr-cli delete --file src/App.tsx --id 1
+  npx local-pr-cli install-skill
 `);
-}
+  }
+})();

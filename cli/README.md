@@ -12,6 +12,24 @@ npx local-pr-cli list
 npm install -g local-pr-cli
 ```
 
+## Claude Code/Cursor Skill
+
+Install the reviewing-locally skill for Claude Code or Cursor:
+
+```bash
+npx local-pr-cli install-skill
+```
+
+This will:
+1. Detect your skill directory (`.claude`, `.cursor`, or `.codex`)
+2. Download the latest skill from GitHub
+3. Install to `~/.claude/skills/reviewing-locally/`
+
+Usage in Claude Code/Cursor:
+```
+/reviewing-locally
+```
+
 ## Usage
 
 ### List comments
