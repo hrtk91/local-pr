@@ -61,6 +61,71 @@ vsce package
 - `Claude Review: List Reviewed Files` - レビュー済みファイル一覧を表示
 - `Claude Review: Show File History` - ファイル履歴を表示
 
+## CLI Tool
+
+local-prコメントをコマンドラインから操作できるCLIツールです。
+
+### インストール不要で実行
+
+```bash
+# コメント追加
+npx local-pr-cli add --file src/App.tsx --line 42 --message "Null check needed" --severity warning
+
+# 全ファイルの未解決コメント一覧
+npx local-pr-cli list --active true
+
+# 特定ファイルのコメント（JSON形式）
+npx local-pr-cli list --file src/App.tsx --format json
+
+# コメント解決
+npx local-pr-cli resolve --file src/App.tsx --id 1
+
+# コメント返信
+npx local-pr-cli reply --file src/App.tsx --id 1 --message "Fixed"
+
+# コメント削除
+npx local-pr-cli delete --file src/App.tsx --id 1
+```
+
+### グローバルインストール
+
+```bash
+npm install -g local-pr-cli
+local-pr list --active true
+```
+
+詳細は[cli/README.md](cli/README.md)を参照してください。
+
+## Claude Code / Cursor Skill
+
+Claude CodeやCursorで使えるスキルをワンコマンドでインストールできます。
+
+### スキルのインストール
+
+```bash
+npx local-pr-cli install-skill
+```
+
+このコマンドは以下を実行します：
+1. `.claude/`, `.cursor/`, `.codex/` ディレクトリを自動検出
+2. 複数ある場合はユーザーに選択させる
+3. GitHubから最新のスキルをダウンロード
+4. `~/.claude/skills/reviewing-locally/SKILL.md` にインストール
+
+### スキルの使い方
+
+Claude CodeやCursorで以下のように実行：
+
+```
+/reviewing-locally
+```
+
+スキルがコードレビューのワークフローをサポートします：
+- コメントの作成・読み取り・管理
+- severity設定（error/warning/info）
+- 複数行コメント対応
+- outdatedコメントのフィルタリング
+
 ## Development
 
 ```bash
