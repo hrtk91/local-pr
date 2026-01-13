@@ -69,22 +69,22 @@ local-prコメントをコマンドラインから操作できるCLIツールで
 
 ```bash
 # コメント追加
-npx github:hrtk91/local-pr/cli add --file src/App.tsx --line 42 --message "Null check needed" --severity warning
+npx hrtk91/local-pr add --file src/App.tsx --line 42 --message "Null check needed" --severity warning
 
 # 全ファイルの未解決コメント一覧
-npx github:hrtk91/local-pr/cli list --active true
+npx hrtk91/local-pr list --active true
 
 # 特定ファイルのコメント（JSON形式）
-npx github:hrtk91/local-pr/cli list --file src/App.tsx --format json
+npx hrtk91/local-pr list --file src/App.tsx --format json
 
 # コメント解決
-npx github:hrtk91/local-pr/cli resolve --file src/App.tsx --id 1
+npx hrtk91/local-pr resolve --file src/App.tsx --id 1
 
 # コメント返信
-npx github:hrtk91/local-pr/cli reply --file src/App.tsx --id 1 --message "Fixed"
+npx hrtk91/local-pr reply --file src/App.tsx --id 1 --message "Fixed"
 
 # コメント削除
-npx github:hrtk91/local-pr/cli delete --file src/App.tsx --id 1
+npx hrtk91/local-pr delete --file src/App.tsx --id 1
 ```
 
 ### ローカルインストール（開発用）
@@ -111,7 +111,7 @@ Claude CodeやCursorで使えるスキルをワンコマンドでインストー
 ### スキルのインストール
 
 ```bash
-npx github:hrtk91/local-pr/cli install-skill
+npx hrtk91/local-pr install-skill
 ```
 
 このコマンドは以下を実行します：

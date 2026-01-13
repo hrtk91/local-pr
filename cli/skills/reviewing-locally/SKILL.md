@@ -11,7 +11,7 @@ local-pr形式（`.review/`）でコードレビューコメントを操作す�
 
 ```bash
 # スキルインストール（初回のみ）
-npx github:hrtk91/local-pr/cli install-skill
+npx hrtk91/local-pr install-skill
 ```
 
 ## データ形式
@@ -56,16 +56,16 @@ GitHubから直接実行可能（インストール不要）。
 
 ```bash
 # 全ファイルの未解決コメント
-npx github:hrtk91/local-pr/cli list --active true
+npx hrtk91/local-pr list --active true
 
 # 特定ファイル（JSON形式）
-npx github:hrtk91/local-pr/cli list --file src/App.tsx --format json
+npx hrtk91/local-pr list --file src/App.tsx --format json
 ```
 
 ### コメント作成
 
 ```bash
-npx github:hrtk91/local-pr/cli add \
+npx hrtk91/local-pr add \
   --file "src/App.tsx" \
   --line 42 \
   --message "ここでnullチェックが必要です" \
@@ -77,13 +77,13 @@ npx github:hrtk91/local-pr/cli add \
 
 ```bash
 # 解決済みにする
-npx github:hrtk91/local-pr/cli resolve --file "src/App.tsx" --id 3
+npx hrtk91/local-pr resolve --file "src/App.tsx" --id 3
 
 # リプライ追加
-npx github:hrtk91/local-pr/cli reply --file "src/App.tsx" --id 3 --message "修正しました"
+npx hrtk91/local-pr reply --file "src/App.tsx" --id 3 --message "修正しました"
 
 # 削除
-npx github:hrtk91/local-pr/cli delete --file "src/App.tsx" --id 3
+npx hrtk91/local-pr delete --file "src/App.tsx" --id 3
 ```
 
 ## ワークフロー
@@ -91,17 +91,17 @@ npx github:hrtk91/local-pr/cli delete --file "src/App.tsx" --id 3
 ### コードレビュー時
 1. 対象ファイルを読み取り
 2. 問題点を特定
-3. `npx github:hrtk91/local-pr/cli add` でコメント作成
+3. `npx hrtk91/local-pr add` でコメント作成
 4. severity は問題の重大度に応じて設定:
    - `error`: バグ、セキュリティ問題、必須の修正
    - `warning`: 改善推奨、潜在的問題
    - `info`: 提案、質問、メモ
 
 ### レビュー対応時
-1. 既存コメントを読み取り（`npx github:hrtk91/local-pr/cli list`）
+1. 既存コメントを読み取り（`npx hrtk91/local-pr list`）
 2. 指摘内容を確認
 3. コードを修正
-4. 修正完了後、`npx github:hrtk91/local-pr/cli resolve` で解決
+4. 修正完了後、`npx hrtk91/local-pr resolve` で解決
 
 ## 注意事項
 

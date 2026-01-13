@@ -6,7 +6,7 @@ CLI tool for [local-pr](https://github.com/hirotaka-taminato/local-pr) code revi
 
 ```bash
 # Run directly with npx from GitHub (always uses latest version)
-npx github:hrtk91/local-pr/cli list
+npx hrtk91/local-pr list
 
 # Or install locally for development
 git clone https://github.com/hrtk91/local-pr.git
@@ -21,7 +21,7 @@ npm link
 Install the reviewing-locally skill for Claude Code or Cursor:
 
 ```bash
-npx github:hrtk91/local-pr/cli install-skill
+npx hrtk91/local-pr install-skill
 ```
 
 This will:
@@ -40,19 +40,19 @@ Usage in Claude Code/Cursor:
 
 ```bash
 # List all active comments
-npx github:hrtk91/local-pr/cli list --active true
+npx hrtk91/local-pr list --active true
 
 # List comments in a specific file
-npx github:hrtk91/local-pr/cli list --file src/App.tsx
+npx hrtk91/local-pr list --file src/App.tsx
 
 # Output as JSON
-npx github:hrtk91/local-pr/cli list --file src/App.tsx --format json
+npx hrtk91/local-pr list --file src/App.tsx --format json
 ```
 
 ### Add a comment
 
 ```bash
-npx github:hrtk91/local-pr/cli add \
+npx hrtk91/local-pr add \
   --file src/App.tsx \
   --line 42 \
   --message "Add null check here" \
@@ -65,13 +65,13 @@ Severity: `error` | `warning` | `info` (default: `info`)
 ### Resolve a comment
 
 ```bash
-npx github:hrtk91/local-pr/cli resolve --file src/App.tsx --id 3
+npx hrtk91/local-pr resolve --file src/App.tsx --id 3
 ```
 
 ### Reply to a comment
 
 ```bash
-npx github:hrtk91/local-pr/cli reply \
+npx hrtk91/local-pr reply \
   --file src/App.tsx \
   --id 3 \
   --message "Fixed in commit abc123"
@@ -80,7 +80,7 @@ npx github:hrtk91/local-pr/cli reply \
 ### Delete a comment
 
 ```bash
-npx github:hrtk91/local-pr/cli delete --file src/App.tsx --id 3
+npx hrtk91/local-pr delete --file src/App.tsx --id 3
 ```
 
 ## Data Format
