@@ -65,32 +65,40 @@ vsce package
 
 local-prコメントをコマンドラインから操作できるCLIツールです。
 
-### インストール不要で実行
+### 使い方（インストール不要）
 
 ```bash
 # コメント追加
-npx local-pr-cli add --file src/App.tsx --line 42 --message "Null check needed" --severity warning
+npx github:hrtk91/local-pr/cli add --file src/App.tsx --line 42 --message "Null check needed" --severity warning
 
 # 全ファイルの未解決コメント一覧
-npx local-pr-cli list --active true
+npx github:hrtk91/local-pr/cli list --active true
 
 # 特定ファイルのコメント（JSON形式）
-npx local-pr-cli list --file src/App.tsx --format json
+npx github:hrtk91/local-pr/cli list --file src/App.tsx --format json
 
 # コメント解決
-npx local-pr-cli resolve --file src/App.tsx --id 1
+npx github:hrtk91/local-pr/cli resolve --file src/App.tsx --id 1
 
 # コメント返信
-npx local-pr-cli reply --file src/App.tsx --id 1 --message "Fixed"
+npx github:hrtk91/local-pr/cli reply --file src/App.tsx --id 1 --message "Fixed"
 
 # コメント削除
-npx local-pr-cli delete --file src/App.tsx --id 1
+npx github:hrtk91/local-pr/cli delete --file src/App.tsx --id 1
 ```
 
-### グローバルインストール
+### ローカルインストール（開発用）
+
+リポジトリをクローンしてローカルでリンク：
 
 ```bash
-npm install -g local-pr-cli
+git clone https://github.com/hrtk91/local-pr.git
+cd local-pr/cli
+npm install
+npm run build
+npm link
+
+# その後、どこからでも実行可能
 local-pr list --active true
 ```
 
@@ -103,7 +111,7 @@ Claude CodeやCursorで使えるスキルをワンコマンドでインストー
 ### スキルのインストール
 
 ```bash
-npx local-pr-cli install-skill
+npx github:hrtk91/local-pr/cli install-skill
 ```
 
 このコマンドは以下を実行します：

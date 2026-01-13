@@ -432,13 +432,13 @@ Commands:
   install-skill Install Claude Code skill
 
 Examples:
-  npx local-pr-cli add --file src/App.tsx --line 42 --message "Add null check" --severity warning
-  npx local-pr-cli list --active true
-  npx local-pr-cli list --file src/App.tsx --format json
-  npx local-pr-cli resolve --file src/App.tsx --id 1
-  npx local-pr-cli reply --file src/App.tsx --id 1 --message "Fixed"
-  npx local-pr-cli delete --file src/App.tsx --id 1
-  npx local-pr-cli install-skill
+  npx github:hrtk91/local-pr/cli add --file src/App.tsx --line 42 --message "Add null check" --severity warning
+  npx github:hrtk91/local-pr/cli list --active true
+  npx github:hrtk91/local-pr/cli list --file src/App.tsx --format json
+  npx github:hrtk91/local-pr/cli resolve --file src/App.tsx --id 1
+  npx github:hrtk91/local-pr/cli reply --file src/App.tsx --id 1 --message "Fixed"
+  npx github:hrtk91/local-pr/cli delete --file src/App.tsx --id 1
+  npx github:hrtk91/local-pr/cli install-skill
 `);
   }
 })();
