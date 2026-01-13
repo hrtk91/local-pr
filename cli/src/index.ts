@@ -364,7 +364,7 @@ async function cmdInstallSkill() {
   console.log('');
   console.log('📥 Downloading skill from GitHub...');
 
-  const skillUrl = 'https://raw.githubusercontent.com/hirotaka-taminato/local-pr/master/cli/skills/reviewing-locally/SKILL.md';
+  const skillUrl = 'https://raw.githubusercontent.com/hrtk91/local-pr/master/cli/skills/reviewing-locally/SKILL.md';
 
   try {
     const content = await downloadFile(skillUrl);
