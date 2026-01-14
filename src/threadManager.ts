@@ -164,6 +164,47 @@ export function updateComment(
 }
 
 /**
+ * Add a reply to an existing thread without recreating it.
+ * Preserves the thread's expanded/collapsed state.
+ */
+export function addReplyToThread(
+  targetFile: string,
+  commentId: string,
+  author: string,
+  message: string
+): boolean {
+  const thread = get(targetFile, commentId);
+  if (!thread || thread.comments.length === 0) return false;
+
+  // Determine author name format (match existing reply format from create function)
+  const authorName = author.toLowerCase().includes('claude')
+    ? '🤖 Claude'
+    : '👤 User';
+
+  // Create new reply comment
+  const replyComment = new ClaudeComment(
+    message,
+    'info',
+    '',
+    vscode.CommentMode.Preview,
+    { name: authorName },
+    targetFile,
+    undefined,  // Reply doesn't have its own ID
+    undefined,  // Will be set by parent thread
+    false,      // Not resolved
+    false       // Not outdated
+  );
+
+  // Set parent thread
+  replyComment.parent = thread;
+
+  // Add reply to thread (append to existing comments)
+  // VSCode requires full array reassignment to trigger UI update
+  thread.comments = [...thread.comments, replyComment];
+  return true;
+}
+
+/**
  * Get all comment IDs for a specific file
  */
 export function getCommentIdsForFile(targetFile: string): string[] {

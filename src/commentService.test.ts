@@ -149,20 +149,25 @@ describe('addReply - CRITICAL for regression prevention', () => {
     expect(loaded[0].severity).toBe('error');
   });
 
-  it('should preserve author after UI refresh', () => {
+  it('should preserve thread and add reply without recreating', () => {
     // User creates a comment
     const comment = service.addComment('src/App.tsx', 10, 'User message', { author: 'user' });
 
-    // Clear mock to track new thread creation
-    mockUI.threads.clear();
+    // Get initial thread
+    const initialThread = mockUI.threads.get('src/App.tsx:1');
+    expect(initialThread).toBeDefined();
+    const initialCommentCount = initialThread!.comments.length;
 
-    // Add reply (triggers UI refresh)
+    // Add reply (should update thread without recreating)
     service.addReply('src/App.tsx', comment!.id, 'claude', 'Claude reply');
 
-    // UI should recreate thread with correct author from store
-    const thread = mockUI.threads.get('src/App.tsx:1');
-    expect(thread).toBeDefined();
-    expect(thread!.author).toBe('user'); // Should preserve original author!
+    // Thread should still exist (not recreated)
+    const threadAfterReply = mockUI.threads.get('src/App.tsx:1');
+    expect(threadAfterReply).toBeDefined();
+    expect(threadAfterReply!.author).toBe('user'); // Should preserve original author!
+
+    // Reply should be added to the thread
+    expect(threadAfterReply!.comments.length).toBe(initialCommentCount + 1);
   });
 
   it('should support multiple replies', () => {

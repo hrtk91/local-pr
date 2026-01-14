@@ -21,8 +21,13 @@ export type UIAdapter = {
   disposeThreadsForFile: (file: string) => void;
   expandThread: (threadId: string) => void;
 
+  // Thread更新
+  addReplyToThread: (threadId: string, author: string, message: string) => boolean;
+  updateThreadWithComment: (threadId: string, comment: ReviewComment) => boolean;
+
   // Thread取得
   getThread: (threadId: string) => { comments: readonly vscode.Comment[] } | undefined;
+  getThreadIdsForFile: (file: string) => string[];
 
   // 既存スレッドにコメントを設定して管理下に登録（VSCodeが作った一時スレッドを再利用）
   populateThread: (thread: vscode.CommentThread, comment: ReviewComment, author: 'claude' | 'user') => string;
@@ -149,8 +154,97 @@ export function createVScodeUIAdapter(
       }
     },
 
+    addReplyToThread: (threadId, author, message) => {
+      const thread = threads.get(threadId);
+      if (!thread || thread.comments.length === 0) return false;
+
+      // Determine author name format (match existing reply format from createThread)
+      const authorName = author.toLowerCase().includes('claude')
+        ? '🤖 Claude'
+        : '👤 User';
+
+      // Extract targetFile from threadId (format: "file:commentId")
+      const colonIndex = threadId.lastIndexOf(':');
+      const targetFile = threadId.substring(0, colonIndex);
+
+      // Create new reply comment
+      const replyComment = new ClaudeComment(
+        message,
+        'info',
+        '',
+        vscode.CommentMode.Preview,
+        { name: authorName },
+        targetFile,
+        undefined,  // Reply doesn't have its own ID
+        thread,     // Set parent thread
+        false,      // Not resolved
+        false       // Not outdated
+      );
+
+      // Add reply to thread (append to existing comments)
+      // VSCode requires full array reassignment to trigger UI update
+      thread.comments = [...thread.comments, replyComment];
+      return true;
+    },
+
     getThread: (threadId) => {
       return threads.get(threadId);
+    },
+
+    getThreadIdsForFile: (file) => {
+      const prefix = `${file}:`;
+      const result: string[] = [];
+
+      for (const key of threads.keys()) {
+        if (key.startsWith(prefix)) {
+          result.push(key);
+        }
+      }
+      return result;
+    },
+
+    updateThreadWithComment: (threadId, comment) => {
+      const thread = threads.get(threadId);
+      if (!thread) return false;
+
+      // 既存の Reply 数とコメントの Reply 数を比較
+      const currentReplyCount = thread.comments.length - 1; // 最初の1つはメインコメント
+      const newReplyCount = comment.replies?.length || 0;
+
+      if (newReplyCount > currentReplyCount) {
+        // Reply が増えている → 新しい Reply を追加
+        const newReplies = comment.replies!.slice(currentReplyCount);
+        for (const reply of newReplies) {
+          const authorName = reply.author === 'claude' ? '🤖 Claude' : '👤 User';
+          const colonIndex = threadId.lastIndexOf(':');
+          const targetFile = threadId.substring(0, colonIndex);
+
+          const replyComment = new ClaudeComment(
+            reply.message,
+            'info',
+            '',
+            vscode.CommentMode.Preview,
+            { name: authorName },
+            targetFile,
+            undefined,
+            thread,
+            false,
+            false
+          );
+
+          thread.comments = [...thread.comments, replyComment];
+        }
+      }
+
+      // Outdated/Resolved 状態の更新
+      if (comment.outdated || comment.resolved) {
+        thread.canReply = false;
+        if (comment.outdated) {
+          thread.label = `[outdated] ${comment.title || ''}`;
+        }
+      }
+
+      return true;
     },
 
     populateThread: (thread, comment, author) => {
@@ -267,12 +361,61 @@ export function createMockUIAdapter(): UIAdapter & {
       // Mock: no-op (テスト用なので何もしない)
     },
 
+    addReplyToThread: (threadId, author, message) => {
+      const mockThread = threads.get(threadId);
+      if (!mockThread) return false;
+
+      // Add reply to mock thread
+      const replyIndex = mockThread.comments.length;
+      mockThread.comments.push({
+        commentId: `${mockThread.comment.id}-reply-${replyIndex}`,
+        parent: mockThread,
+      });
+
+      // Update the comment in store (if needed for tests)
+      // This is a simplified mock implementation
+      return true;
+    },
+
     getThread: (threadId) => {
       const mock = threads.get(threadId);
       if (!mock) return undefined;
       return {
         comments: mock.comments as any,
       };
+    },
+
+    getThreadIdsForFile: (file) => {
+      const prefix = `${file}:`;
+      const result: string[] = [];
+
+      for (const key of threads.keys()) {
+        if (key.startsWith(prefix)) {
+          result.push(key);
+        }
+      }
+      return result;
+    },
+
+    updateThreadWithComment: (threadId, comment) => {
+      const mockThread = threads.get(threadId);
+      if (!mockThread) return false;
+
+      // Update comment data
+      mockThread.comment = comment;
+
+      // Update replies count
+      if (comment.replies) {
+        mockThread.comments = [
+          { commentId: comment.id, parent: mockThread },
+          ...comment.replies.map((r, i) => ({
+            commentId: `${comment.id}-reply-${i + 1}`,
+            parent: mockThread
+          }))
+        ];
+      }
+
+      return true;
     },
 
     populateThread: (_thread, comment, author) => {

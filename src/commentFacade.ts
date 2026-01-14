@@ -163,8 +163,8 @@ export function addReply(
   const success = store.addReply(targetFile, commentId, author, message);
   if (!success) return false;
 
-  // Reload the file comments to update UI with new reply
-  loadFileComments(targetFile);
+  // Add reply to UI thread without reloading all threads
+  threads.addReplyToThread(targetFile, commentId, author, message);
   return true;
 }
 

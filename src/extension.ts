@@ -80,6 +80,10 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument((doc) => {
       const relativePath = path.relative(currentWorkspacePath!, doc.uri.fsPath).replace(/\\/g, '/');
+      // Ignore .review directory to avoid triggering on comment file saves
+      if (relativePath.startsWith('.review/')) {
+        return;
+      }
       service.checkOutdatedForFile(relativePath);
     })
   );
@@ -376,10 +380,17 @@ function setupWatcher(context: vscode.ExtensionContext) {
     if (service.getIsSaving()) return;
 
     console.log('[Claude Review] File changed:', uri.fsPath);
+
+    // Extract the target file from the .review filename
+    // Format: .review/files/{encoded-filename}.jsonl.gz
+    const fileName = path.basename(uri.fsPath, '.jsonl.gz');
+    const targetFile = decodeURIComponent(fileName);
+
     setTimeout(() => {
-      // Use current filter state from TreeView
+      // Only reload the specific file that changed, not all files
+      // This preserves the expanded/collapsed state of other threads
       const includeOutdated = unresolvedCommentsProvider?.showOutdated ?? true;
-      service.loadAllActiveComments(includeOutdated);
+      service.loadFileComments(targetFile, includeOutdated);
       unresolvedCommentsProvider?.refresh();
     }, 100);
   };
