@@ -17,7 +17,7 @@
   ],
   "main": "./out/extension.js",
   "bin": {
-    "lrev": "./cli/dist/index.js"
+    "leview": "./cli/dist/index.js"
   },
   "contributes": {
     "viewsContainers": {

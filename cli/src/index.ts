@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * lrev — Local Review CLI
+ * leview — Local Review CLI
  * Comment creation, listing, resolution, and git-diff integration.
  */
 
@@ -791,7 +791,7 @@ const [, , command, ...args] = process.argv;
       await cmdInstallSkill(args);
       break;
     default:
-      console.log(`lrev — Local Review CLI
+      console.log(`leview — Local Review CLI
 
 Commands:
   status        Show project status and comment summary
@@ -806,17 +806,17 @@ Commands:
   install-skill Install Claude Code skill
 
 Examples:
-  lrev status
-  lrev diff-files --json
-  lrev diff src/App.tsx
-  lrev config base develop
-  lrev add --file src/App.tsx --line 42 --message "Add null check" --severity warning
-  lrev list --active true
-  lrev list --file src/App.tsx --format json
-  lrev resolve --file src/App.tsx --id 1
-  lrev reply --file src/App.tsx --id 1 --message "Fixed"
-  lrev delete --file src/App.tsx --id 1
-  lrev install-skill
+  leview status
+  leview diff-files --json
+  leview diff src/App.tsx
+  leview config base develop
+  leview add --file src/App.tsx --line 42 --message "Add null check" --severity warning
+  leview list --active true
+  leview list --file src/App.tsx --format json
+  leview resolve --file src/App.tsx --id 1
+  leview reply --file src/App.tsx --id 1 --message "Fixed"
+  leview delete --file src/App.tsx --id 1
+  leview install-skill
 `);
   }
 })();
