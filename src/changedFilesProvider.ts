@@ -84,7 +84,17 @@ export class ChangedFileDecorationProvider implements vscode.FileDecorationProvi
 // Tree Item Types
 // ============================================================
 
-type TreeElement = RefHeaderItem | FilesGroupItem | DirItem | FileItem;
+type TreeElement = RefHeaderItem | SeparatorItem | FilesGroupItem | DirItem | FileItem;
+
+class SeparatorItem extends vscode.TreeItem {
+  readonly kind = 'separator' as const;
+
+  constructor() {
+    super('', vscode.TreeItemCollapsibleState.None);
+    this.description = '───────────────';
+    this.contextValue = 'separator';
+  }
+}
 
 class RefHeaderItem extends vscode.TreeItem {
   readonly kind = 'header' as const;
@@ -247,10 +257,10 @@ export class ChangedFilesProvider implements vscode.TreeDataProvider<TreeElement
         } else {
           group.children.push(...this.toTreeElements(files));
         }
-        return [targetHeader, baseHeader, group];
+        return [targetHeader, baseHeader, new SeparatorItem(), group];
       } catch (err) {
         console.error('[Local Review] Failed to get changed files:', err);
-        return [targetHeader, baseHeader, new FilesGroupItem(0)];
+        return [targetHeader, baseHeader, new SeparatorItem(), new FilesGroupItem(0)];
       }
     }
 
