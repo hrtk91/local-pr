@@ -58,7 +58,7 @@ export function createVScodeUIAdapter(
       const endLine = comment.endLine ? comment.endLine - 1 : startLine;
       const range = new vscode.Range(startLine, 0, endLine, 0);
 
-      const authorName = author === 'claude' ? 'Claude Review' : '👤 User';
+      const authorName = author === 'claude' ? 'Local Review' : '👤 User';
       const claudeComment = new ClaudeComment(
         comment.message,
         comment.severity,
@@ -298,7 +298,7 @@ export function createVScodeUIAdapter(
     populateThread: (thread, comment, author) => {
       // 既存スレッド（VSCodeが作った一時スレッド）にコメントを設定
       const targetFile = comment.file;
-      const authorName = author === 'claude' ? 'Claude Review' : '👤 User';
+      const authorName = author === 'claude' ? 'Local Review' : '👤 User';
 
       const claudeComment = new ClaudeComment(
         comment.message,

@@ -12,7 +12,7 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onView:claudeReview.unresolvedComments",
+    "onView:localReview.unresolvedComments",
     "onView:localReview.changedFiles"
   ],
   "main": "./out/extension.js",
@@ -30,8 +30,8 @@
       ],
       "panel": [
         {
-          "id": "claudeReview",
-          "title": "Claude Review",
+          "id": "localReviewPanel",
+          "title": "Local Review",
           "icon": "$(comment-discussion)"
         }
       ]
@@ -43,74 +43,74 @@
           "name": "Changed Files"
         }
       ],
-      "claudeReview": [
+      "localReviewPanel": [
         {
-          "id": "claudeReview.unresolvedComments",
+          "id": "localReview.unresolvedComments",
           "name": "Unresolved Comments"
         }
       ]
     },
     "commands": [
       {
-        "command": "claudeReview.refresh",
-        "title": "Claude Review: Refresh Comments"
+        "command": "localReview.refreshComments",
+        "title": "Local Review: Refresh Comments"
       },
       {
-        "command": "claudeReview.clear",
-        "title": "Claude Review: Clear All Comments"
+        "command": "localReview.clear",
+        "title": "Local Review: Clear All Comments"
       },
       {
-        "command": "claudeReview.listFiles",
-        "title": "Claude Review: List Reviewed Files"
+        "command": "localReview.listFiles",
+        "title": "Local Review: List Reviewed Files"
       },
       {
-        "command": "claudeReview.showFileHistory",
-        "title": "Claude Review: Show File History"
+        "command": "localReview.showFileHistory",
+        "title": "Local Review: Show File History"
       },
       {
-        "command": "claudeReview.createComment",
+        "command": "localReview.createComment",
         "title": "Add Comment"
       },
       {
-        "command": "claudeReview.replyComment",
+        "command": "localReview.replyComment",
         "title": "Reply"
       },
       {
-        "command": "claudeReview.editComment",
+        "command": "localReview.editComment",
         "title": "Edit Comment",
         "icon": "$(edit)"
       },
       {
-        "command": "claudeReview.deleteComment",
+        "command": "localReview.deleteComment",
         "title": "Delete Comment",
         "icon": "$(trash)"
       },
       {
-        "command": "claudeReview.saveComment",
+        "command": "localReview.saveComment",
         "title": "Save",
         "icon": "$(check)"
       },
       {
-        "command": "claudeReview.cancelEdit",
+        "command": "localReview.cancelEdit",
         "title": "Cancel",
         "icon": "$(close)"
       },
       {
-        "command": "claudeReview.resolveComment",
+        "command": "localReview.resolveComment",
         "title": "Resolve",
         "icon": "$(check)"
       },
       {
-        "command": "claudeReview.jumpToComment",
+        "command": "localReview.jumpToComment",
         "title": "Jump to Comment"
       },
       {
-        "command": "claudeReview.refreshUnresolvedView",
+        "command": "localReview.refreshUnresolvedView",
         "title": "Refresh Unresolved Comments View",
         "icon": "$(refresh)"
       },
       {
-        "command": "claudeReview.toggleOutdatedFilter",
+        "command": "localReview.toggleOutdatedFilter",
         "title": "Toggle Outdated Filter",
         "icon": "$(filter)"
       },
@@ -138,48 +138,48 @@
     "menus": {
       "comments/commentThread/context": [
         {
-          "command": "claudeReview.replyComment",
+          "command": "localReview.replyComment",
           "group": "inline@1"
         }
       ],
       "comments/commentThread/title": [
         {
-          "command": "claudeReview.resolveComment",
+          "command": "localReview.resolveComment",
           "group": "inline@1"
         }
       ],
       "comments/comment": [],
       "comments/comment/context": [
         {
-          "command": "claudeReview.saveComment",
+          "command": "localReview.saveComment",
           "group": "inline@1"
         },
         {
-          "command": "claudeReview.cancelEdit",
+          "command": "localReview.cancelEdit",
           "group": "inline@2"
         }
       ],
       "comments/comment/title": [
         {
-          "command": "claudeReview.editComment",
+          "command": "localReview.editComment",
           "group": "inline@1",
           "when": "comment == editable"
         },
         {
-          "command": "claudeReview.deleteComment",
+          "command": "localReview.deleteComment",
           "group": "inline@2",
           "when": "comment != outdated"
         }
       ],
       "view/title": [
         {
-          "command": "claudeReview.toggleOutdatedFilter",
-          "when": "view == claudeReview.unresolvedComments",
+          "command": "localReview.toggleOutdatedFilter",
+          "when": "view == localReview.unresolvedComments",
           "group": "navigation@1"
         },
         {
-          "command": "claudeReview.refreshUnresolvedView",
-          "when": "view == claudeReview.unresolvedComments",
+          "command": "localReview.refreshUnresolvedView",
+          "when": "view == localReview.unresolvedComments",
           "group": "navigation@2"
         },
         {

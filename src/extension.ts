@@ -33,7 +33,7 @@ let changedFilesProvider: ChangedFilesProvider | undefined;
 // ============================================================
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log('Claude Review Comments extension activated (v2.0.0 - adapter layer)');
+  console.log('Local Review Comments extension activated (v2.0.0 - adapter layer)');
 
   const commentController = vscode.comments.createCommentController(
     'local-review',
@@ -55,14 +55,14 @@ export function activate(context: vscode.ExtensionContext) {
   // Create Unresolved Comments TreeView (always, even without workspace)
   // If no workspace, it will show empty
   const workspacePath = workspaceFolder?.uri.fsPath || '';
-  console.log('[Claude Review] Creating TreeView with workspace:', workspacePath);
+  console.log('[Local Review] Creating TreeView with workspace:', workspacePath);
   unresolvedCommentsProvider = new UnresolvedCommentsProvider(workspacePath);
-  const treeView = vscode.window.createTreeView('claudeReview.unresolvedComments', {
+  const treeView = vscode.window.createTreeView('localReview.unresolvedComments', {
     treeDataProvider: unresolvedCommentsProvider,
     showCollapseAll: true
   });
   context.subscriptions.push(treeView);
-  console.log('[Claude Review] TreeView created and registered');
+  console.log('[Local Review] TreeView created and registered');
 
   // Early return if no workspace - but TreeView is still registered above
   if (!workspaceFolder) {
@@ -161,52 +161,52 @@ export function activate(context: vscode.ExtensionContext) {
 
 function registerCommands(context: vscode.ExtensionContext, uiAdapter: ReturnType<typeof createVScodeUIAdapter>) {
   context.subscriptions.push(
-    vscode.commands.registerCommand('claudeReview.refresh', () => {
+    vscode.commands.registerCommand('localReview.refreshComments', () => {
       service.loadAllActiveComments();
-      uiAdapter.showInfo('Claude Review: Comments refreshed');
+      uiAdapter.showInfo('Local Review: Comments refreshed');
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('claudeReview.clear', () => {
+    vscode.commands.registerCommand('localReview.clear', () => {
       service.clearAll();
-      uiAdapter.showInfo('Claude Review: All comments cleared');
+      uiAdapter.showInfo('Local Review: All comments cleared');
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('claudeReview.listFiles', async () => {
+    vscode.commands.registerCommand('localReview.listFiles', async () => {
       await showReviewedFilesPicker();
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('claudeReview.showFileHistory', async () => {
+    vscode.commands.registerCommand('localReview.showFileHistory', async () => {
       await showFileHistory();
     })
   );
 
   // Comment handlers - 両方同じ処理に委譲
   context.subscriptions.push(
-    vscode.commands.registerCommand('claudeReview.createComment', async (reply: vscode.CommentReply) => {
+    vscode.commands.registerCommand('localReview.createComment', async (reply: vscode.CommentReply) => {
       await handleCommentOrReply(reply, uiAdapter);
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('claudeReview.replyComment', async (reply: vscode.CommentReply) => {
+    vscode.commands.registerCommand('localReview.replyComment', async (reply: vscode.CommentReply) => {
       await handleCommentOrReply(reply, uiAdapter);
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('claudeReview.deleteComment', async (comment: ClaudeComment) => {
+    vscode.commands.registerCommand('localReview.deleteComment', async (comment: ClaudeComment) => {
       await deleteComment(comment, uiAdapter);
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('claudeReview.resolveComment', async (thread: vscode.CommentThread) => {
+    vscode.commands.registerCommand('localReview.resolveComment', async (thread: vscode.CommentThread) => {
       // CommentThread のルートコメントから ClaudeComment を取得
       const rootComment = thread.comments[0] as ClaudeComment | undefined;
       if (!rootComment?.targetFile || !rootComment?.commentId) {
@@ -223,7 +223,7 @@ function registerCommands(context: vscode.ExtensionContext, uiAdapter: ReturnTyp
 
   // Edit commands (VSCode固有の処理)
   context.subscriptions.push(
-    vscode.commands.registerCommand('claudeReview.editComment', async (comment: ClaudeComment) => {
+    vscode.commands.registerCommand('localReview.editComment', async (comment: ClaudeComment) => {
       comment.mode = vscode.CommentMode.Editing;
       if (comment.parent) {
         comment.parent.comments = [...comment.parent.comments];
@@ -232,7 +232,7 @@ function registerCommands(context: vscode.ExtensionContext, uiAdapter: ReturnTyp
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('claudeReview.saveComment', async (comment: ClaudeComment) => {
+    vscode.commands.registerCommand('localReview.saveComment', async (comment: ClaudeComment) => {
       // TODO: Save edit to store
       comment.mode = vscode.CommentMode.Preview;
       if (comment.parent) {
@@ -243,7 +243,7 @@ function registerCommands(context: vscode.ExtensionContext, uiAdapter: ReturnTyp
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('claudeReview.cancelEdit', async (comment: ClaudeComment) => {
+    vscode.commands.registerCommand('localReview.cancelEdit', async (comment: ClaudeComment) => {
       comment.body = comment.savedBody;
       comment.mode = vscode.CommentMode.Preview;
       if (comment.parent) {
@@ -254,7 +254,7 @@ function registerCommands(context: vscode.ExtensionContext, uiAdapter: ReturnTyp
 
   // Unresolved Comments TreeView commands
   context.subscriptions.push(
-    vscode.commands.registerCommand('claudeReview.jumpToComment', async (file: string, line: number, commentId: string) => {
+    vscode.commands.registerCommand('localReview.jumpToComment', async (file: string, line: number, commentId: string) => {
       if (!currentWorkspacePath) return;
       const uri = vscode.Uri.file(path.join(currentWorkspacePath, file));
       const doc = await vscode.window.showTextDocument(uri);
@@ -272,14 +272,14 @@ function registerCommands(context: vscode.ExtensionContext, uiAdapter: ReturnTyp
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('claudeReview.refreshUnresolvedView', () => {
+    vscode.commands.registerCommand('localReview.refreshUnresolvedView', () => {
       unresolvedCommentsProvider?.refresh();
       uiAdapter.showInfo('Unresolved comments view refreshed');
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('claudeReview.toggleOutdatedFilter', () => {
+    vscode.commands.registerCommand('localReview.toggleOutdatedFilter', () => {
       unresolvedCommentsProvider?.toggleOutdatedFilter();
       const state = unresolvedCommentsProvider?.getFilterState() || 'Unknown';
 

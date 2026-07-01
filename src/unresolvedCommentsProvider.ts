@@ -82,12 +82,12 @@ export class UnresolvedCommentsProvider implements vscode.TreeDataProvider<TreeI
    * Get children for a given element (or root)
    */
   getChildren(element?: TreeItemData): TreeItemData[] {
-    console.log('[Claude Review] TreeView getChildren called, element:', element?.type || 'ROOT');
+    console.log('[Local Review] TreeView getChildren called, element:', element?.type || 'ROOT');
 
     if (!element) {
       // Root: return all files with unresolved comments
       const items = this.getRootFileItems();
-      console.log('[Claude Review] TreeView returning', items.length, 'root items');
+      console.log('[Local Review] TreeView returning', items.length, 'root items');
       return items;
     }
 
@@ -135,7 +135,7 @@ export class UnresolvedCommentsProvider implements vscode.TreeDataProvider<TreeI
       return items;
     } catch (e) {
       // Store not initialized yet - return empty array
-      console.log('[Claude Review] TreeView: Store not initialized yet, showing empty');
+      console.log('[Local Review] TreeView: Store not initialized yet, showing empty');
       return [];
     }
   }
@@ -200,7 +200,7 @@ export class UnresolvedCommentsProvider implements vscode.TreeDataProvider<TreeI
 
     // Command: Jump to comment location on click
     item.command = {
-      command: 'claudeReview.jumpToComment',
+      command: 'localReview.jumpToComment',
       title: 'Jump to Comment',
       arguments: [data.file, comment.line, comment.id]
     };
