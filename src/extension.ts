@@ -42,6 +42,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   commentController.commentingRangeProvider = {
     provideCommentingRanges: (document: vscode.TextDocument) => {
+      if (document.uri.scheme !== 'file') return [];
       const lineCount = document.lineCount;
       return [new vscode.Range(0, 0, lineCount - 1, 0)];
     }
