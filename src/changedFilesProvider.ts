@@ -4,6 +4,9 @@
  * Supports two view modes (like VSCode Source Control):
  *   - tree: files grouped by directory hierarchy
  *   - flat: simple file list
+ *
+ * Uses FileDecorationProvider for status badges (M/A/D/R with git colors),
+ * and resourceUri for file-type icons from the user's icon theme.
  */
 
 import * as vscode from 'vscode';
@@ -13,6 +16,7 @@ import {
   getFileContentAtCommit,
   detectBaseBranch,
   ChangedFile,
+  FileStatus,
 } from './gitService';
 
 // ============================================================
@@ -35,6 +39,41 @@ export class GitBaseContentProvider implements vscode.TextDocumentContentProvide
     const filePath = fullPath.substring(slashIndex + 1);
 
     return getFileContentAtCommit(this.workspacePath, commit, filePath) ?? '';
+  }
+}
+
+// ============================================================
+// FileDecorationProvider - status badge on files (M/A/D/R)
+// ============================================================
+
+const STATUS_COLORS: Record<FileStatus, vscode.ThemeColor> = {
+  M: new vscode.ThemeColor('gitDecoration.modifiedResourceForeground'),
+  A: new vscode.ThemeColor('gitDecoration.addedResourceForeground'),
+  D: new vscode.ThemeColor('gitDecoration.deletedResourceForeground'),
+  R: new vscode.ThemeColor('gitDecoration.renamedResourceForeground'),
+};
+
+export class ChangedFileDecorationProvider implements vscode.FileDecorationProvider {
+  private _onDidChangeFileDecorations = new vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined>();
+  readonly onDidChangeFileDecorations = this._onDidChangeFileDecorations.event;
+
+  private decorations = new Map<string, vscode.FileDecoration>();
+
+  update(files: ChangedFile[], workspacePath: string): void {
+    this.decorations.clear();
+    for (const file of files) {
+      const uri = vscode.Uri.file(path.join(workspacePath, file.path));
+      this.decorations.set(uri.toString(), {
+        badge: file.status,
+        color: STATUS_COLORS[file.status],
+        tooltip: `${file.status === 'M' ? 'Modified' : file.status === 'A' ? 'Added' : file.status === 'D' ? 'Deleted' : 'Renamed'}`,
+      });
+    }
+    this._onDidChangeFileDecorations.fire(undefined);
+  }
+
+  provideFileDecoration(uri: vscode.Uri): vscode.FileDecoration | undefined {
+    return this.decorations.get(uri.toString());
   }
 }
 
@@ -68,32 +107,10 @@ class FileItem extends vscode.TreeItem {
     const fileName = path.basename(file.path);
     super(fileName, vscode.TreeItemCollapsibleState.None);
 
-    this.description = this.getStatusLabel(file.status);
     this.tooltip = `${file.status} ${file.path}`;
-    this.iconPath = this.getStatusIcon(file.status);
     this.contextValue = 'changedFile';
     this.resourceUri = vscode.Uri.file(path.join(workspacePath, file.path));
     this.command = this.buildDiffCommand();
-  }
-
-  private getStatusLabel(status: string): string {
-    switch (status) {
-      case 'A': return 'A';
-      case 'D': return 'D';
-      case 'R': return 'R';
-      case 'M': return 'M';
-      default: return '';
-    }
-  }
-
-  private getStatusIcon(status: string): vscode.ThemeIcon {
-    switch (status) {
-      case 'A': return new vscode.ThemeIcon('diff-added', new vscode.ThemeColor('gitDecoration.addedResourceForeground'));
-      case 'D': return new vscode.ThemeIcon('diff-removed', new vscode.ThemeColor('gitDecoration.deletedResourceForeground'));
-      case 'R': return new vscode.ThemeIcon('diff-renamed', new vscode.ThemeColor('gitDecoration.renamedResourceForeground'));
-      case 'M':
-      default: return new vscode.ThemeIcon('diff-modified', new vscode.ThemeColor('gitDecoration.modifiedResourceForeground'));
-    }
   }
 
   private buildDiffCommand(): vscode.Command | undefined {
@@ -133,11 +150,16 @@ export class ChangedFilesProvider implements vscode.TreeDataProvider<TreeElement
   private targetRef: string;
   private workspacePath: string;
   private viewMode: 'tree' | 'flat' = 'tree';
+  private decorationProvider: ChangedFileDecorationProvider | undefined;
 
   constructor(workspacePath: string) {
     this.workspacePath = workspacePath;
     this.baseRef = detectBaseBranch(workspacePath);
     this.targetRef = 'HEAD';
+  }
+
+  setDecorationProvider(provider: ChangedFileDecorationProvider): void {
+    this.decorationProvider = provider;
   }
 
   refresh(): void {
@@ -179,6 +201,8 @@ export class ChangedFilesProvider implements vscode.TreeDataProvider<TreeElement
     if (!element) {
       try {
         const files = getChangedFiles(this.workspacePath, this.baseRef, this.targetRef);
+        this.decorationProvider?.update(files, this.workspacePath);
+
         if (this.viewMode === 'flat') {
           return files.map(f => new FileItem(f, this.workspacePath, this.baseRef));
         }
@@ -231,7 +255,6 @@ export class ChangedFilesProvider implements vscode.TreeDataProvider<TreeElement
       }
     }
 
-    // Collapse single-child directories (src/api/ → src/api)
     const collapse = (items: TreeElement[]): TreeElement[] => {
       return items.map(item => {
         if (item.kind !== 'dir') return item;

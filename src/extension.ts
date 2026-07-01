@@ -12,7 +12,7 @@ import * as service from './commentService';
 import { createVScodeUIAdapter } from './uiAdapter';
 import { ClaudeComment } from './types';
 import { UnresolvedCommentsProvider } from './unresolvedCommentsProvider';
-import { ChangedFilesProvider, GitBaseContentProvider } from './changedFilesProvider';
+import { ChangedFilesProvider, GitBaseContentProvider, ChangedFileDecorationProvider } from './changedFilesProvider';
 import { getBranches, getRecentCommits } from './gitService';
 
 // Re-export for external use
@@ -71,6 +71,13 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Create Changed Files sidebar view (Local Review) — requires workspace
   changedFilesProvider = new ChangedFilesProvider(currentWorkspacePath);
+
+  const fileDecorationProvider = new ChangedFileDecorationProvider();
+  changedFilesProvider.setDecorationProvider(fileDecorationProvider);
+  context.subscriptions.push(
+    vscode.window.registerFileDecorationProvider(fileDecorationProvider)
+  );
+
   const changedFilesTreeView = vscode.window.createTreeView('localReview.changedFiles', {
     treeDataProvider: changedFilesProvider,
     showCollapseAll: false,
