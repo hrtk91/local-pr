@@ -84,7 +84,7 @@ export class ChangedFileDecorationProvider implements vscode.FileDecorationProvi
 // Tree Item Types
 // ============================================================
 
-type TreeElement = RefHeaderItem | DirItem | FileItem;
+type TreeElement = RefHeaderItem | FilesGroupItem | DirItem | FileItem;
 
 class RefHeaderItem extends vscode.TreeItem {
   readonly kind = 'header' as const;
@@ -102,6 +102,18 @@ class RefHeaderItem extends vscode.TreeItem {
     }
     this.contextValue = 'refHeader';
     this.command = { command: commandId, title: `Select ${role}` };
+  }
+}
+
+class FilesGroupItem extends vscode.TreeItem {
+  readonly kind = 'filesGroup' as const;
+  readonly children: TreeElement[] = [];
+
+  constructor(fileCount: number) {
+    super(`Changed Files`, vscode.TreeItemCollapsibleState.Expanded);
+    this.description = `${fileCount}`;
+    this.iconPath = new vscode.ThemeIcon('files');
+    this.contextValue = 'filesGroup';
   }
 }
 
@@ -229,17 +241,20 @@ export class ChangedFilesProvider implements vscode.TreeDataProvider<TreeElement
         const files = getChangedFiles(this.workspacePath, this.baseRef, this.targetRef);
         this.decorationProvider?.update(files, this.workspacePath);
 
+        const group = new FilesGroupItem(files.length);
         if (this.viewMode === 'flat') {
-          return [targetHeader, baseHeader, ...files.map(f => new FileItem(f, this.workspacePath, this.baseRef))];
+          group.children.push(...files.map(f => new FileItem(f, this.workspacePath, this.baseRef)));
+        } else {
+          group.children.push(...this.toTreeElements(files));
         }
-        return [targetHeader, baseHeader, ...this.toTreeElements(files)];
+        return [targetHeader, baseHeader, group];
       } catch (err) {
         console.error('[Local Review] Failed to get changed files:', err);
-        return [targetHeader, baseHeader];
+        return [targetHeader, baseHeader, new FilesGroupItem(0)];
       }
     }
 
-    if (element.kind === 'dir') {
+    if (element.kind === 'filesGroup' || element.kind === 'dir') {
       return element.children;
     }
 
