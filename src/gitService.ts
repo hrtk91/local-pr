@@ -115,24 +115,11 @@ export function getFileContentAtCommit(workspacePath: string, commit: string, fi
 /**
  * Detect the base branch for comparison.
  *
- * 3-tier detection:
- *   1. `gh pr view` to get the PR base branch (if inside a PR)
- *   2. `git merge-base HEAD <defaultBranch>`
- *   3. Fall back to 'main'
+ * 2-tier detection (git only, no external CLI dependency):
+ *   1. `git merge-base HEAD <defaultBranch>`
+ *   2. Fall back to 'main'
  */
 export function detectBaseBranch(workspacePath: string): string {
-  // Tier 1: Try gh pr view
-  try {
-    const prBase = exec(
-      'gh pr view --json baseRefName --jq .baseRefName',
-      workspacePath,
-    );
-    if (prBase) return prBase;
-  } catch {
-    // Not in a PR or gh not available
-  }
-
-  // Tier 2: merge-base with the default branch
   const defaultBranch = getDefaultBranch(workspacePath);
   if (defaultBranch) {
     try {
@@ -143,7 +130,6 @@ export function detectBaseBranch(workspacePath: string): string {
     }
   }
 
-  // Tier 3: fall back
   return 'main';
 }
 

@@ -1,0 +1,14 @@
+.git
+.claude
+.vscode
+src/**
+cli/**
+docs/**
+scripts/**
+node_modules/**
+**/*.test.ts
+**/*.map
+vitest.config.ts
+tsconfig.json
+.gitignore
+*.vsix

@@ -175,7 +175,7 @@ export function createVScodeUIAdapter(
         vscode.CommentMode.Preview,
         { name: authorName },
         targetFile,
-        undefined,  // Reply doesn't have its own ID
+        '',  // Reply doesn't have its own ID
         thread,     // Set parent thread
         false,      // Not resolved
         false       // Not outdated
@@ -207,6 +207,44 @@ export function createVScodeUIAdapter(
       const thread = threads.get(threadId);
       if (!thread) return false;
 
+      const rootComment = thread.comments[0] as ClaudeComment | undefined;
+      if (!rootComment) return false;
+
+      let needsUpdate = false;
+      let nextComments: vscode.Comment[] = thread.comments as vscode.Comment[];
+
+      const nextTitle = comment.title || '';
+      const nextResolved = comment.resolved || false;
+      const nextOutdated = comment.outdated || false;
+
+      if (rootComment.rawMessage !== comment.message) {
+        rootComment.rawMessage = comment.message;
+        needsUpdate = true;
+      }
+      if (rootComment.severity !== comment.severity) {
+        rootComment.severity = comment.severity;
+        needsUpdate = true;
+      }
+      if (rootComment.title !== nextTitle) {
+        rootComment.title = nextTitle;
+        needsUpdate = true;
+      }
+      if (rootComment.resolved !== nextResolved) {
+        rootComment.resolved = nextResolved;
+        needsUpdate = true;
+      }
+      if (rootComment.outdated !== nextOutdated) {
+        rootComment.outdated = nextOutdated;
+        needsUpdate = true;
+      }
+      if (needsUpdate) {
+        rootComment.contextValue = rootComment.getContextValue();
+        rootComment.body = rootComment.formatBody();
+        rootComment.savedBody = rootComment.body;
+        nextComments = [...thread.comments];
+        nextComments[0] = rootComment;
+      }
+
       // 既存の Reply 数とコメントの Reply 数を比較
       const currentReplyCount = thread.comments.length - 1; // 最初の1つはメインコメント
       const newReplyCount = comment.replies?.length || 0;
@@ -226,22 +264,32 @@ export function createVScodeUIAdapter(
             vscode.CommentMode.Preview,
             { name: authorName },
             targetFile,
-            undefined,
+            '',
             thread,
             false,
             false
           );
 
-          thread.comments = [...thread.comments, replyComment];
+          if (!needsUpdate) {
+            nextComments = [...thread.comments];
+            needsUpdate = true;
+          }
+          nextComments = [...nextComments, replyComment];
         }
       }
 
+      if (needsUpdate) {
+        thread.comments = nextComments;
+      }
+
       // Outdated/Resolved 状態の更新
-      if (comment.outdated || comment.resolved) {
-        thread.canReply = false;
-        if (comment.outdated) {
-          thread.label = `[outdated] ${comment.title || ''}`;
-        }
+      thread.canReply = !(nextOutdated || nextResolved);
+      thread.label = nextOutdated
+        ? `[outdated] ${comment.title || ''}`
+        : comment.title || `Review: ${comment.severity}`;
+      thread.contextValue = nextOutdated ? 'outdated' : nextResolved ? 'resolved' : 'editable';
+      if (nextOutdated) {
+        thread.collapsibleState = vscode.CommentThreadCollapsibleState.Collapsed;
       }
 
       return true;
