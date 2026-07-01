@@ -82,19 +82,17 @@ export class ChangedFileDecorationProvider implements vscode.FileDecorationProvi
 // Tree Item Types
 // ============================================================
 
-type TreeElement = RangeHeaderItem | DirItem | FileItem;
+type TreeElement = RefHeaderItem | DirItem | FileItem;
 
-class RangeHeaderItem extends vscode.TreeItem {
+class RefHeaderItem extends vscode.TreeItem {
   readonly kind = 'header' as const;
 
-  constructor(base: string, target: string, workspacePath: string) {
-    const shortBase = base.length > 16 ? base.substring(0, 8) + '…' : base;
-    const targetDisplay = target === 'HEAD'
-      ? getHeadDescription(workspacePath)
-      : target;
-    super(`${shortBase}  →  ${targetDisplay}`, vscode.TreeItemCollapsibleState.None);
-    this.iconPath = new vscode.ThemeIcon('git-compare');
-    this.contextValue = 'rangeHeader';
+  constructor(label: string, ref: string, commandId: string) {
+    super('', vscode.TreeItemCollapsibleState.None);
+    this.label = `${label}: ${ref}`;
+    this.iconPath = new vscode.ThemeIcon(label === 'Base' ? 'git-branch' : 'target');
+    this.contextValue = 'refHeader';
+    this.command = { command: commandId, title: `Select ${label}` };
   }
 }
 
@@ -213,18 +211,22 @@ export class ChangedFilesProvider implements vscode.TreeDataProvider<TreeElement
     if (!this.workspacePath) return [];
 
     if (!element) {
-      const header = new RangeHeaderItem(this.baseRef, this.targetRef, this.workspacePath);
+      const targetDisplay = this.targetRef === 'HEAD'
+        ? getHeadDescription(this.workspacePath)
+        : this.targetRef;
+      const baseHeader = new RefHeaderItem('Base', this.baseRef, 'localReview.selectBase');
+      const targetHeader = new RefHeaderItem('Target', targetDisplay, 'localReview.selectTarget');
       try {
         const files = getChangedFiles(this.workspacePath, this.baseRef, this.targetRef);
         this.decorationProvider?.update(files, this.workspacePath);
 
         if (this.viewMode === 'flat') {
-          return [header, ...files.map(f => new FileItem(f, this.workspacePath, this.baseRef))];
+          return [baseHeader, targetHeader, ...files.map(f => new FileItem(f, this.workspacePath, this.baseRef))];
         }
-        return [header, ...this.buildTree(files)];
+        return [baseHeader, targetHeader, ...this.buildTree(files)];
       } catch (err) {
         console.error('[Local Review] Failed to get changed files:', err);
-        return [header];
+        return [baseHeader, targetHeader];
       }
     }
 
