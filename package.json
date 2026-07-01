@@ -12,7 +12,8 @@
   ],
   "activationEvents": [
     "workspaceContains:.review",
-    "onView:claudeReview.unresolvedComments"
+    "onView:claudeReview.unresolvedComments",
+    "onView:localReview.changedFiles"
   ],
   "main": "./out/extension.js",
   "bin": {
@@ -20,6 +21,13 @@
   },
   "contributes": {
     "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "localReview",
+          "title": "Local Review",
+          "icon": "$(git-pull-request)"
+        }
+      ],
       "panel": [
         {
           "id": "claudeReview",
@@ -29,6 +37,12 @@
       ]
     },
     "views": {
+      "localReview": [
+        {
+          "id": "localReview.changedFiles",
+          "name": "Changed Files"
+        }
+      ],
       "claudeReview": [
         {
           "id": "claudeReview.unresolvedComments",
@@ -99,6 +113,21 @@
         "command": "claudeReview.toggleOutdatedFilter",
         "title": "Toggle Outdated Filter",
         "icon": "$(filter)"
+      },
+      {
+        "command": "localReview.refresh",
+        "title": "Local Review: Refresh Changed Files",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "localReview.selectBase",
+        "title": "Local Review: Select Base",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "localReview.selectTarget",
+        "title": "Local Review: Select Target",
+        "icon": "$(target)"
       }
     ],
     "menus": {
@@ -147,6 +176,21 @@
           "command": "claudeReview.refreshUnresolvedView",
           "when": "view == claudeReview.unresolvedComments",
           "group": "navigation@2"
+        },
+        {
+          "command": "localReview.selectBase",
+          "when": "view == localReview.changedFiles",
+          "group": "navigation@1"
+        },
+        {
+          "command": "localReview.selectTarget",
+          "when": "view == localReview.changedFiles",
+          "group": "navigation@2"
+        },
+        {
+          "command": "localReview.refresh",
+          "when": "view == localReview.changedFiles",
+          "group": "navigation@3"
         }
       ]
     }

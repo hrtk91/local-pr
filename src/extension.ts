@@ -12,6 +12,8 @@ import * as service from './commentService';
 import { createVScodeUIAdapter } from './uiAdapter';
 import { ClaudeComment } from './types';
 import { UnresolvedCommentsProvider } from './unresolvedCommentsProvider';
+import { ChangedFilesProvider, GitBaseContentProvider } from './changedFilesProvider';
+import { getBranches, getRecentCommits } from './gitService';
 
 // Re-export for external use
 export { ClaudeComment } from './types';
@@ -23,6 +25,7 @@ export { ClaudeComment } from './types';
 let watcher: vscode.FileSystemWatcher | undefined;
 let currentWorkspacePath: string | undefined;
 let unresolvedCommentsProvider: UnresolvedCommentsProvider | undefined;
+let changedFilesProvider: ChangedFilesProvider | undefined;
 
 // ============================================================
 // Activation
@@ -66,9 +69,39 @@ export function activate(context: vscode.ExtensionContext) {
 
   currentWorkspacePath = workspaceFolder.uri.fsPath;
 
+  // Create Changed Files sidebar view (Local Review) — requires workspace
+  changedFilesProvider = new ChangedFilesProvider(currentWorkspacePath);
+  const changedFilesTreeView = vscode.window.createTreeView('localReview.changedFiles', {
+    treeDataProvider: changedFilesProvider,
+    showCollapseAll: false,
+  });
+  context.subscriptions.push(changedFilesTreeView);
+
+  // Register GitBaseContentProvider for diff base content
+  const gitBaseContentProvider = new GitBaseContentProvider(currentWorkspacePath);
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider('local-review-base', gitBaseContentProvider)
+  );
+
+  // Register Local Review commands
+  registerLocalReviewCommands(context, changedFilesProvider);
+  console.log('[Local Review] Sidebar view created and registered');
+
   // Create UI Adapter and initialize service
   const uiAdapter = createVScodeUIAdapter(commentController, currentWorkspacePath);
   service.init(uiAdapter, currentWorkspacePath);
+
+  const refreshOutdatedForFile = (fsPath: string) => {
+    const relativePath = path.relative(currentWorkspacePath!, fsPath).replace(/\\/g, '/');
+    if (relativePath.startsWith('.review/')) {
+      return;
+    }
+    service.checkOutdatedForFile(relativePath);
+    const includeOutdated = unresolvedCommentsProvider?.showOutdated ?? true;
+    if (!includeOutdated) {
+      service.loadFileComments(relativePath, false);
+    }
+  };
 
   // Initial load - all active comments (include outdated by default)
   service.loadAllActiveComments(true);
@@ -79,12 +112,26 @@ export function activate(context: vscode.ExtensionContext) {
   // Re-check outdated on file save
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument((doc) => {
-      const relativePath = path.relative(currentWorkspacePath!, doc.uri.fsPath).replace(/\\/g, '/');
-      // Ignore .review directory to avoid triggering on comment file saves
-      if (relativePath.startsWith('.review/')) {
-        return;
+      refreshOutdatedForFile(doc.uri.fsPath);
+      unresolvedCommentsProvider?.refresh();
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.workspace.onDidDeleteFiles((event) => {
+      for (const file of event.files) {
+        refreshOutdatedForFile(file.fsPath);
       }
-      service.checkOutdatedForFile(relativePath);
+      unresolvedCommentsProvider?.refresh();
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.workspace.onDidRenameFiles((event) => {
+      for (const file of event.files) {
+        refreshOutdatedForFile(file.oldUri.fsPath);
+      }
+      unresolvedCommentsProvider?.refresh();
     })
   );
 
@@ -221,6 +268,97 @@ function registerCommands(context: vscode.ExtensionContext, uiAdapter: ReturnTyp
       service.loadAllActiveComments(includeOutdated);
 
       uiAdapter.showInfo(`Filter: ${state}`);
+    })
+  );
+}
+
+// ============================================================
+// Local Review Commands
+// ============================================================
+
+function registerLocalReviewCommands(
+  context: vscode.ExtensionContext,
+  provider: ChangedFilesProvider
+) {
+  context.subscriptions.push(
+    vscode.commands.registerCommand('localReview.refresh', () => {
+      provider.refresh();
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('localReview.selectBase', async () => {
+      const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (!workspacePath) return;
+
+      const items: vscode.QuickPickItem[] = [];
+
+      // Add branches
+      try {
+        const branches = getBranches(workspacePath);
+        for (const branch of branches) {
+          items.push({ label: branch, description: 'branch' });
+        }
+      } catch { /* ignore */ }
+
+      // Add recent commits
+      try {
+        const commits = getRecentCommits(workspacePath);
+        for (const commit of commits) {
+          items.push({
+            label: commit.hash.substring(0, 8),
+            description: commit.message,
+          });
+        }
+      } catch { /* ignore */ }
+
+      const selected = await vscode.window.showQuickPick(items, {
+        placeHolder: `Base ref (current: ${provider.getBaseRef()})`,
+      });
+
+      if (selected) {
+        provider.setBaseRef(selected.label);
+        provider.refresh();
+      }
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('localReview.selectTarget', async () => {
+      const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (!workspacePath) return;
+
+      const items: vscode.QuickPickItem[] = [
+        { label: 'HEAD', description: 'current commit' },
+      ];
+
+      // Add branches
+      try {
+        const branches = getBranches(workspacePath);
+        for (const branch of branches) {
+          items.push({ label: branch, description: 'branch' });
+        }
+      } catch { /* ignore */ }
+
+      // Add recent commits
+      try {
+        const commits = getRecentCommits(workspacePath);
+        for (const commit of commits) {
+          items.push({
+            label: commit.hash.substring(0, 8),
+            description: commit.message,
+          });
+        }
+      } catch { /* ignore */ }
+
+      const selected = await vscode.window.showQuickPick(items, {
+        placeHolder: `Target ref (current: ${provider.getTargetRef()})`,
+      });
+
+      if (selected) {
+        provider.setTargetRef(selected.label);
+        provider.refresh();
+      }
     })
   );
 }
