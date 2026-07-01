@@ -91,7 +91,14 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   // Register Local Review commands
-  registerLocalReviewCommands(context, changedFilesProvider);
+  const updateTreeViewDescription = () => {
+    const base = changedFilesProvider!.getBaseRef();
+    const shortBase = base.length > 12 ? base.substring(0, 8) + '…' : base;
+    const target = changedFilesProvider!.getTargetRef();
+    changedFilesTreeView.description = `${shortBase} ↔ ${target}`;
+  };
+  updateTreeViewDescription();
+  registerLocalReviewCommands(context, changedFilesProvider, updateTreeViewDescription);
   console.log('[Local Review] Sidebar view created and registered');
 
   // Create UI Adapter and initialize service
@@ -285,7 +292,8 @@ function registerCommands(context: vscode.ExtensionContext, uiAdapter: ReturnTyp
 
 function registerLocalReviewCommands(
   context: vscode.ExtensionContext,
-  provider: ChangedFilesProvider
+  provider: ChangedFilesProvider,
+  updateDescription: () => void,
 ) {
   context.subscriptions.push(
     vscode.commands.registerCommand('localReview.refresh', () => {
@@ -332,6 +340,7 @@ function registerLocalReviewCommands(
       if (selected) {
         provider.setBaseRef(selected.label);
         provider.refresh();
+        updateDescription();
       }
     })
   );
@@ -371,6 +380,7 @@ function registerLocalReviewCommands(
       if (selected) {
         provider.setTargetRef(selected.label);
         provider.refresh();
+        updateDescription();
       }
     })
   );
