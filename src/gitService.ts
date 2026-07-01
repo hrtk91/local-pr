@@ -121,9 +121,8 @@ export function getFileContentAtCommit(workspacePath: string, commit: string, fi
  *
  * Priority:
  *   1. Upstream tracking branch (e.g. feature → origin/develop → develop)
- *   2. origin/HEAD symbolic-ref (remote default branch)
- *   3. Merge-base proximity: find the closest local branch by commit distance
- *   4. Fall back to first existing of main/master/develop
+ *   2. Closest branch by merge-base distance (handles detached HEAD / worktree)
+ *   3. Fall back to first existing of main/master/develop
  *
  * Skips the current branch itself to avoid empty diffs.
  */
@@ -137,18 +136,11 @@ export function detectBaseBranch(workspacePath: string): string {
       const base = upstream.replace(/^origin\//, '');
       if (base !== currentBranch) return base;
     }
-  } catch { /* no upstream */ }
+  } catch { /* no upstream (detached HEAD etc.) */ }
 
-  // 2. origin/HEAD (remote default branch)
-  const defaultBranch = getDefaultBranch(workspacePath);
-  if (defaultBranch && defaultBranch !== currentBranch) {
-    try {
-      exec(`git merge-base HEAD ${defaultBranch}`, workspacePath);
-      return defaultBranch;
-    } catch { /* merge-base failed */ }
-  }
-
-  // 3. Closest branch by merge-base distance
+  // 2. Closest branch by merge-base distance
+  //    This correctly handles worktree/detached HEAD where upstream is unavailable.
+  //    Includes all local branches to find the true parent (e.g. develop over main).
   try {
     const branches = getBranches(workspacePath)
       .filter(b => b !== currentBranch && !b.startsWith('origin/'));
@@ -170,7 +162,7 @@ export function detectBaseBranch(workspacePath: string): string {
     if (bestBranch) return bestBranch;
   } catch { /* ignore */ }
 
-  // 4. Fallback: first existing common branch name
+  // 3. Fallback: first existing common branch name
   for (const candidate of ['main', 'master', 'develop']) {
     try {
       exec(`git rev-parse --verify ${candidate}`, workspacePath);
@@ -186,6 +178,20 @@ function getCurrentBranch(workspacePath: string): string | undefined {
     return exec('git branch --show-current', workspacePath) || undefined;
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * Get current HEAD info for display: branch name + short hash.
+ */
+export function getHeadDescription(workspacePath: string): string {
+  try {
+    const hash = exec('git rev-parse --short HEAD', workspacePath);
+    const branch = getCurrentBranch(workspacePath);
+    if (branch) return `${branch} (${hash})`;
+    return hash || 'HEAD';
+  } catch {
+    return 'HEAD';
   }
 }
 

@@ -13,7 +13,7 @@ import { createVScodeUIAdapter } from './uiAdapter';
 import { ClaudeComment } from './types';
 import { UnresolvedCommentsProvider } from './unresolvedCommentsProvider';
 import { ChangedFilesProvider, GitBaseContentProvider, ChangedFileDecorationProvider } from './changedFilesProvider';
-import { getBranches, getRecentCommits } from './gitService';
+import { getBranches, getRecentCommits, getHeadDescription } from './gitService';
 
 // Re-export for external use
 export { ClaudeComment } from './types';
@@ -95,7 +95,10 @@ export function activate(context: vscode.ExtensionContext) {
     const base = changedFilesProvider!.getBaseRef();
     const shortBase = base.length > 12 ? base.substring(0, 8) + '…' : base;
     const target = changedFilesProvider!.getTargetRef();
-    changedFilesTreeView.description = `${shortBase} ↔ ${target}`;
+    const targetDisplay = target === 'HEAD'
+      ? getHeadDescription(currentWorkspacePath!)
+      : target;
+    changedFilesTreeView.description = `${shortBase} ↔ ${targetDisplay}`;
   };
   updateTreeViewDescription();
   registerLocalReviewCommands(context, changedFilesProvider, updateTreeViewDescription);
