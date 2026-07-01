@@ -88,11 +88,11 @@ class FileItem extends vscode.TreeItem {
 
   private getStatusIcon(status: string): vscode.ThemeIcon {
     switch (status) {
-      case 'A': return new vscode.ThemeIcon('diff-added');
-      case 'D': return new vscode.ThemeIcon('diff-removed');
-      case 'R': return new vscode.ThemeIcon('diff-renamed');
+      case 'A': return new vscode.ThemeIcon('diff-added', new vscode.ThemeColor('gitDecoration.addedResourceForeground'));
+      case 'D': return new vscode.ThemeIcon('diff-removed', new vscode.ThemeColor('gitDecoration.deletedResourceForeground'));
+      case 'R': return new vscode.ThemeIcon('diff-renamed', new vscode.ThemeColor('gitDecoration.renamedResourceForeground'));
       case 'M':
-      default: return new vscode.ThemeIcon('diff-modified');
+      default: return new vscode.ThemeIcon('diff-modified', new vscode.ThemeColor('gitDecoration.modifiedResourceForeground'));
     }
   }
 

@@ -82,14 +82,17 @@ export function parseNameStatus(output: string): ChangedFile[] {
 
 /**
  * Get list of files changed between base and target refs.
- * Uses two-dot notation (base..target) for symmetric diff.
+ *
+ * When target is 'HEAD', compares against the working tree
+ * so uncommitted changes are included: `git diff base`
+ * Otherwise uses two-dot notation: `git diff base..target`
  */
 export function getChangedFiles(workspacePath: string, base: string, target: string): ChangedFile[] {
   try {
-    const output = exec(
-      `git diff --name-status ${base}..${target}`,
-      workspacePath,
-    );
+    const cmd = target === 'HEAD'
+      ? `git diff --name-status ${base}`
+      : `git diff --name-status ${base}..${target}`;
+    const output = exec(cmd, workspacePath);
     if (!output) return [];
     return parseNameStatus(output);
   } catch {
