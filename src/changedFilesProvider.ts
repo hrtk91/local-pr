@@ -84,14 +84,16 @@ export class ChangedFileDecorationProvider implements vscode.FileDecorationProvi
 // Tree Item Types
 // ============================================================
 
-type TreeElement = RefHeaderItem | SeparatorItem | FilesGroupItem | DirItem | FileItem;
+type TreeElement = RefHeaderItem | SeparatorItem | DirItem | FileItem;
 
 class SeparatorItem extends vscode.TreeItem {
   readonly kind = 'separator' as const;
 
-  constructor() {
+  constructor(fileCount?: number) {
     super('', vscode.TreeItemCollapsibleState.None);
-    this.description = '───────────────';
+    this.description = fileCount != null
+      ? `─── ${fileCount} files ───`
+      : '───────────────';
     this.contextValue = 'separator';
   }
 }
@@ -112,18 +114,6 @@ class RefHeaderItem extends vscode.TreeItem {
     }
     this.contextValue = 'refHeader';
     this.command = { command: commandId, title: `Select ${role}` };
-  }
-}
-
-class FilesGroupItem extends vscode.TreeItem {
-  readonly kind = 'filesGroup' as const;
-  readonly children: TreeElement[] = [];
-
-  constructor(fileCount: number) {
-    super(`Changed Files`, vscode.TreeItemCollapsibleState.Expanded);
-    this.description = `${fileCount}`;
-    this.iconPath = new vscode.ThemeIcon('files');
-    this.contextValue = 'filesGroup';
   }
 }
 
@@ -251,20 +241,18 @@ export class ChangedFilesProvider implements vscode.TreeDataProvider<TreeElement
         const files = getChangedFiles(this.workspacePath, this.baseRef, this.targetRef);
         this.decorationProvider?.update(files, this.workspacePath);
 
-        const group = new FilesGroupItem(files.length);
+        const sep = new SeparatorItem(files.length);
         if (this.viewMode === 'flat') {
-          group.children.push(...files.map(f => new FileItem(f, this.workspacePath, this.baseRef)));
-        } else {
-          group.children.push(...this.toTreeElements(files));
+          return [targetHeader, baseHeader, sep, ...files.map(f => new FileItem(f, this.workspacePath, this.baseRef))];
         }
-        return [targetHeader, baseHeader, new SeparatorItem(), group];
+        return [targetHeader, baseHeader, sep, ...this.toTreeElements(files)];
       } catch (err) {
         console.error('[Local Review] Failed to get changed files:', err);
-        return [targetHeader, baseHeader, new SeparatorItem(), new FilesGroupItem(0)];
+        return [targetHeader, baseHeader, new SeparatorItem(0)];
       }
     }
 
-    if (element.kind === 'filesGroup' || element.kind === 'dir') {
+    if (element.kind === 'dir') {
       return element.children;
     }
 
