@@ -19,9 +19,9 @@ let uiAdapter: UIAdapter | undefined;
 // Initialization
 // ============================================================
 
-export function init(adapter: UIAdapter, wsPath: string) {
+export function init(adapter: UIAdapter, wsPath: string, storageBaseDir?: string) {
   uiAdapter = adapter;
-  store.init(wsPath);
+  store.init(wsPath, storageBaseDir);
 }
 
 export function getIsSaving(): boolean {
@@ -203,15 +203,11 @@ export function checkOutdatedForFile(changedFile: string) {
   const comments = store.load(changedFile);
   for (const comment of comments) {
     if (store.isOutdated(comment) && !comment.outdated) {
-      store.update(changedFile, comment.id, { outdated: true });
+      const updated = store.update(changedFile, comment.id, { outdated: true });
+      if (!updated) continue;
       // Update the specific thread's outdated state without recreating
       const threadId = `${changedFile}:${comment.id}`;
-      const thread = uiAdapter.getThread(threadId);
-      if (thread) {
-        // Thread exists, just mark it as outdated visually
-        // For now, we skip UI update to avoid closing threads
-        // TODO: Implement proper thread update for outdated state
-      }
+      uiAdapter.updateThreadWithComment(threadId, updated);
     }
   }
   // Don't reload all threads - preserves expanded/collapsed state
@@ -271,4 +267,3 @@ export function handleCommentOrReply(input: CommentInput): {
     return { type: 'comment', success: !!comment, comment };
   }
 }
-

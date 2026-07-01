@@ -15,6 +15,7 @@ import * as store from './commentStore';
 // ============================================================
 
 let testDir: string;
+let storageBaseDir: string;
 
 function createTestDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'comment-store-test-'));
@@ -45,11 +46,13 @@ function makeComment(overrides: Partial<Parameters<typeof store.create>[1]> = {}
 
 beforeEach(() => {
   testDir = createTestDir();
-  store.init(testDir);
+  storageBaseDir = createTestDir();
+  store.init(testDir, storageBaseDir);
 });
 
 afterEach(() => {
   cleanupTestDir(testDir);
+  cleanupTestDir(storageBaseDir);
 });
 
 // ============================================================
@@ -156,7 +159,7 @@ describe('create()', () => {
     const comment = store.create(targetFile, makeComment());
 
     // Re-init to clear any in-memory state
-    store.init(testDir);
+    store.init(testDir, storageBaseDir);
     const loaded = store.load(targetFile);
     expect(loaded).toHaveLength(1);
     expect(loaded[0].id).toBe(comment.id);
@@ -418,13 +421,15 @@ describe('getAllReviewedFiles()', () => {
   });
 
   it('should return empty array when no review directory exists', () => {
-    // Use a fresh directory without .review
+    // Use a fresh directory without any comment files
     const emptyDir = createTestDir();
-    store.init(emptyDir);
+    const emptyStorageBase = createTestDir();
+    store.init(emptyDir, emptyStorageBase);
 
     const files = store.getAllReviewedFiles();
     expect(files).toEqual([]);
 
     cleanupTestDir(emptyDir);
+    cleanupTestDir(emptyStorageBase);
   });
 });

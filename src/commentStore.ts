@@ -2,12 +2,15 @@
  * Comment Store - JSONL+gzip persistence (File-based Repository)
  *
  * ファイル単位でコメントを管理。セッション概念なし。
- * 形式: .review/files/{encodedPath}.jsonl.gz
+ * 形式: ~/.local-review/<project-hash>/files/{encodedPath}.jsonl.gz
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
+import * as crypto from 'crypto';
+import * as os from 'os';
+import { execSync } from 'child_process';
 import { ReviewComment } from './types';
 
 // ============================================================
@@ -15,19 +18,51 @@ import { ReviewComment } from './types';
 // ============================================================
 
 let workspacePath: string | undefined;
+let storageDir: string | undefined;
 let isSaving = false;
+
+// ============================================================
+// Project Hash
+// ============================================================
+
+/**
+ * プロジェクトのハッシュを計算する。
+ * git remote get-url origin のSHA256先頭12文字。
+ * remote がなければワークスペースの絶対パスのSHA256先頭12文字。
+ */
+function computeProjectHash(wsPath: string): string {
+  let source: string;
+  try {
+    source = execSync('git remote get-url origin', {
+      cwd: wsPath,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+  } catch {
+    source = path.resolve(wsPath);
+  }
+  return crypto.createHash('sha256').update(source).digest('hex').substring(0, 12);
+}
 
 // ============================================================
 // Initialization
 // ============================================================
 
-export function init(wsPath: string) {
+export function init(wsPath: string, storageBaseDir?: string) {
   workspacePath = wsPath;
+  const baseDir = storageBaseDir || os.homedir();
+  const hash = computeProjectHash(wsPath);
+  storageDir = path.join(baseDir, '.local-review', hash);
   ensureReviewDir();
+  migrateFromOldStorage(wsPath);
 }
 
 export function getWorkspacePath(): string | undefined {
   return workspacePath;
+}
+
+export function getStorageDir(): string | undefined {
+  return storageDir;
 }
 
 export function getIsSaving(): boolean {
@@ -39,8 +74,8 @@ export function getIsSaving(): boolean {
 // ============================================================
 
 function getReviewDir(): string {
-  if (!workspacePath) throw new Error('Store not initialized');
-  return path.join(workspacePath, '.review');
+  if (!storageDir) throw new Error('Store not initialized');
+  return storageDir;
 }
 
 function getFilesDir(): string {
@@ -49,7 +84,7 @@ function getFilesDir(): string {
 
 /**
  * ファイルパスをURLエンコードして .jsonl.gz パスを返す
- * 例: src/App.tsx → .review/files/src%2FApp.tsx.jsonl.gz
+ * 例: src/App.tsx → ~/.local-review/<hash>/files/src%2FApp.tsx.jsonl.gz
  */
 export function getCommentsPath(targetFile: string): string {
   const encoded = encodeURIComponent(targetFile.replace(/\\/g, '/'));
@@ -69,6 +104,33 @@ function ensureReviewDir() {
   if (!fs.existsSync(filesDir)) {
     fs.mkdirSync(filesDir, { recursive: true });
   }
+}
+
+// ============================================================
+// Migration from old .review/ storage
+// ============================================================
+
+function migrateFromOldStorage(wsPath: string) {
+  const oldFilesDir = path.join(wsPath, '.review', 'files');
+  if (!fs.existsSync(oldFilesDir)) return;
+
+  const newFilesDir = getFilesDir();
+  const oldFiles = fs.readdirSync(oldFilesDir).filter(f => f.endsWith('.jsonl.gz'));
+  if (oldFiles.length === 0) return;
+
+  // Only migrate if new location is empty
+  const newFiles = fs.existsSync(newFilesDir)
+    ? fs.readdirSync(newFilesDir).filter(f => f.endsWith('.jsonl.gz'))
+    : [];
+  if (newFiles.length > 0) return;
+
+  console.log(`[Local Review] Migrating ${oldFiles.length} comment files from .review/ to ${newFilesDir}`);
+  for (const file of oldFiles) {
+    const src = path.join(oldFilesDir, file);
+    const dst = path.join(newFilesDir, file);
+    fs.copyFileSync(src, dst);
+  }
+  console.log('[Local Review] Migration complete');
 }
 
 // ============================================================
@@ -238,10 +300,11 @@ export function getLineContent(file: string, line: number): string {
  * コメントが outdated かどうかを判定
  */
 export function isOutdated(comment: ReviewComment): boolean {
-  if (!workspacePath || !comment.line_content) return false;
+  if (!workspacePath) return false;
 
   const filePath = path.join(workspacePath, comment.file);
   if (!fs.existsSync(filePath)) return true;
+  if (!comment.line_content) return false;
 
   try {
     const content = fs.readFileSync(filePath, 'utf-8');

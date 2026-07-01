@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as service from './commentService';
+import * as store from './commentStore';
 import { createVScodeUIAdapter } from './uiAdapter';
 import { ClaudeComment } from './types';
 import { UnresolvedCommentsProvider } from './unresolvedCommentsProvider';
@@ -110,7 +111,8 @@ export function activate(context: vscode.ExtensionContext) {
 
   const refreshOutdatedForFile = (fsPath: string) => {
     const relativePath = path.relative(currentWorkspacePath!, fsPath).replace(/\\/g, '/');
-    if (relativePath.startsWith('.review/')) {
+    // Skip files outside the workspace (e.g. absolute paths or ..)
+    if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
       return;
     }
     service.checkOutdatedForFile(relativePath);
@@ -532,10 +534,14 @@ async function showFileHistory() {
 function setupWatcher(context: vscode.ExtensionContext) {
   if (!currentWorkspacePath) return;
 
-  // Watch .review/**/*.jsonl.gz files using VSCode's native FileSystemWatcher
+  // Watch ~/.local-review/<hash>/files/*.jsonl.gz using absolute path
+  const reviewStorageDir = store.getStorageDir();
+  if (!reviewStorageDir) return;
+
+  const filesDir = path.join(reviewStorageDir, 'files');
   const pattern = new vscode.RelativePattern(
-    currentWorkspacePath,
-    '.review/**/*.jsonl.gz'
+    vscode.Uri.file(filesDir),
+    '*.jsonl.gz'
   );
 
   watcher = vscode.workspace.createFileSystemWatcher(pattern);
@@ -543,10 +549,10 @@ function setupWatcher(context: vscode.ExtensionContext) {
   const handleChange = (uri: vscode.Uri) => {
     if (service.getIsSaving()) return;
 
-    console.log('[Claude Review] File changed:', uri.fsPath);
+    console.log('[Local Review] File changed:', uri.fsPath);
 
-    // Extract the target file from the .review filename
-    // Format: .review/files/{encoded-filename}.jsonl.gz
+    // Extract the target file from the storage filename
+    // Format: ~/.local-review/<hash>/files/{encoded-filename}.jsonl.gz
     const fileName = path.basename(uri.fsPath, '.jsonl.gz');
     const targetFile = decodeURIComponent(fileName);
 

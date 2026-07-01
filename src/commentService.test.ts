@@ -18,6 +18,7 @@ import { createMockUIAdapter } from './uiAdapter';
 // ============================================================
 
 let testDir: string;
+let storageBaseDir: string;
 let mockUI: ReturnType<typeof createMockUIAdapter>;
 
 function createTestDir(): string {
@@ -37,12 +38,14 @@ function cleanupTestDir(dir: string) {
 
 beforeEach(() => {
   testDir = createTestDir();
+  storageBaseDir = createTestDir();
   mockUI = createMockUIAdapter();
-  service.init(mockUI, testDir);
+  service.init(mockUI, testDir, storageBaseDir);
 });
 
 afterEach(() => {
   cleanupTestDir(testDir);
+  cleanupTestDir(storageBaseDir);
 });
 
 // ============================================================

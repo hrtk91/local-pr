@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'cli/src/**/*.test.ts'],
     alias: {
       // Mock vscode module for tests
       vscode: new URL('./src/__mocks__/vscode.ts', import.meta.url).pathname,
