@@ -7,6 +7,7 @@
  *
  * Uses FileDecorationProvider for status badges (M/A/D/R with git colors),
  * and resourceUri for file-type icons from the user's icon theme.
+ * Tree building logic is in treeBuilder.ts (pure, testable).
  */
 
 import * as vscode from 'vscode';
@@ -19,6 +20,7 @@ import {
   ChangedFile,
   FileStatus,
 } from './gitService';
+import { buildFileTree, TreeNode } from './treeBuilder';
 
 // ============================================================
 // GitBaseContentProvider - provides file content at a given commit
@@ -230,7 +232,7 @@ export class ChangedFilesProvider implements vscode.TreeDataProvider<TreeElement
         if (this.viewMode === 'flat') {
           return [targetHeader, baseHeader, ...files.map(f => new FileItem(f, this.workspacePath, this.baseRef))];
         }
-        return [targetHeader, baseHeader, ...this.buildTree(files)];
+        return [targetHeader, baseHeader, ...this.toTreeElements(files)];
       } catch (err) {
         console.error('[Local Review] Failed to get changed files:', err);
         return [targetHeader, baseHeader];
@@ -244,58 +246,19 @@ export class ChangedFilesProvider implements vscode.TreeDataProvider<TreeElement
     return [];
   }
 
-  private buildTree(files: ChangedFile[]): TreeElement[] {
-    const root: Map<string, DirItem | FileItem> = new Map();
-    const dirMap = new Map<string, DirItem>();
+  private toTreeElements(files: ChangedFile[]): TreeElement[] {
+    const treeNodes = buildFileTree(files);
+    return this.convertNodes(treeNodes);
+  }
 
-    const getOrCreateDir = (dirPath: string): DirItem => {
-      const existing = dirMap.get(dirPath);
-      if (existing) return existing;
-
-      const dirName = path.basename(dirPath);
-      const dir = new DirItem(dirName, dirPath);
-      dirMap.set(dirPath, dir);
-
-      const parentPath = path.dirname(dirPath);
-      if (parentPath === '.' || parentPath === '') {
-        root.set(dirPath, dir);
-      } else {
-        const parent = getOrCreateDir(parentPath);
-        parent.children.push(dir);
+  private convertNodes(nodes: TreeNode[]): TreeElement[] {
+    return nodes.map(node => {
+      if (node.kind === 'file') {
+        return new FileItem(node.file, this.workspacePath, this.baseRef);
       }
-
+      const dir = new DirItem(node.name, node.dirPath);
+      dir.children.push(...this.convertNodes(node.children));
       return dir;
-    };
-
-    for (const file of files) {
-      const fileItem = new FileItem(file, this.workspacePath, this.baseRef);
-      const dirPath = path.dirname(file.path);
-
-      if (dirPath === '.' || dirPath === '') {
-        root.set(file.path, fileItem);
-      } else {
-        const dir = getOrCreateDir(dirPath);
-        dir.children.push(fileItem);
-      }
-    }
-
-    const collapse = (items: TreeElement[]): TreeElement[] => {
-      return items.map(item => {
-        if (item.kind !== 'dir') return item;
-        item.children.splice(0, item.children.length, ...collapse(item.children));
-        if (item.children.length === 1 && item.children[0].kind === 'dir') {
-          const child = item.children[0];
-          const merged = new DirItem(
-            `${item.label}/${child.label}`,
-            child.dirPath,
-          );
-          merged.children.push(...child.children);
-          return merged;
-        }
-        return item;
-      });
-    };
-
-    return collapse([...root.values()]);
+    });
   }
 }
