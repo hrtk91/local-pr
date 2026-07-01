@@ -84,15 +84,20 @@ export function parseNameStatus(output: string): ChangedFile[] {
 /**
  * Get list of files changed between base and target refs.
  *
- * When target is 'HEAD', compares against the working tree
- * so uncommitted changes are included: `git diff base`
- * Otherwise uses two-dot notation: `git diff base..target`
+ * Uses merge-base (fork point) as the actual diff base, so changes
+ * merged into the base branch after branching off are excluded.
+ *
+ * When target is 'HEAD', compares merge-base against working tree
+ * so uncommitted changes are included.
  */
 export function getChangedFiles(workspacePath: string, base: string, target: string): ChangedFile[] {
   try {
+    const mergeBase = exec(`git merge-base HEAD ${base}`, workspacePath);
+    const actualBase = mergeBase || base;
+
     const cmd = target === 'HEAD'
-      ? `git diff --name-status ${base}`
-      : `git diff --name-status ${base}..${target}`;
+      ? `git diff --name-status ${actualBase}`
+      : `git diff --name-status ${actualBase}..${target}`;
     const output = exec(cmd, workspacePath);
     if (!output) return [];
     return parseNameStatus(output);
