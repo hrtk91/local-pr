@@ -36,8 +36,8 @@ export function activate(context: vscode.ExtensionContext) {
   console.log('Claude Review Comments extension activated (v2.0.0 - adapter layer)');
 
   const commentController = vscode.comments.createCommentController(
-    'claude-review',
-    'Claude Review'
+    'local-review',
+    'Local Review'
   );
 
   commentController.commentingRangeProvider = {
