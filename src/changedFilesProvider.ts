@@ -81,7 +81,18 @@ export class ChangedFileDecorationProvider implements vscode.FileDecorationProvi
 // Tree Item Types
 // ============================================================
 
-type TreeElement = DirItem | FileItem;
+type TreeElement = RangeHeaderItem | DirItem | FileItem;
+
+class RangeHeaderItem extends vscode.TreeItem {
+  readonly kind = 'header' as const;
+
+  constructor(base: string, target: string) {
+    const shortBase = base.length > 16 ? base.substring(0, 8) + '…' : base;
+    super(`${shortBase}  →  ${target}`, vscode.TreeItemCollapsibleState.None);
+    this.iconPath = new vscode.ThemeIcon('git-compare');
+    this.contextValue = 'rangeHeader';
+  }
+}
 
 class DirItem extends vscode.TreeItem {
   readonly kind = 'dir' as const;
@@ -198,17 +209,18 @@ export class ChangedFilesProvider implements vscode.TreeDataProvider<TreeElement
     if (!this.workspacePath) return [];
 
     if (!element) {
+      const header = new RangeHeaderItem(this.baseRef, this.targetRef);
       try {
         const files = getChangedFiles(this.workspacePath, this.baseRef, this.targetRef);
         this.decorationProvider?.update(files, this.workspacePath);
 
         if (this.viewMode === 'flat') {
-          return files.map(f => new FileItem(f, this.workspacePath, this.baseRef));
+          return [header, ...files.map(f => new FileItem(f, this.workspacePath, this.baseRef))];
         }
-        return this.buildTree(files);
+        return [header, ...this.buildTree(files)];
       } catch (err) {
         console.error('[Local Review] Failed to get changed files:', err);
-        return [];
+        return [header];
       }
     }
 
