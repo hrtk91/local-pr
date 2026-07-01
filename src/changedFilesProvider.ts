@@ -91,7 +91,6 @@ class DirItem extends vscode.TreeItem {
   constructor(dirName: string, dirPath: string) {
     super(dirName, vscode.TreeItemCollapsibleState.Expanded);
     this.dirPath = dirPath;
-    this.iconPath = vscode.ThemeIcon.Folder;
     this.contextValue = 'directory';
   }
 }

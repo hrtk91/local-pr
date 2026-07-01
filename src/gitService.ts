@@ -29,6 +29,7 @@ function exec(command: string, cwd: string): string {
     encoding: 'utf-8',
     timeout: 10_000,
     stdio: ['pipe', 'pipe', 'pipe'],
+    env: { ...process.env, GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.quotepath', GIT_CONFIG_VALUE_0: 'false' },
   }).trim();
 }
 
