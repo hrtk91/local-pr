@@ -25,7 +25,7 @@
         {
           "id": "localReview",
           "title": "Local Review",
-          "icon": "$(git-pull-request)"
+          "icon": "$(diff)"
         }
       ],
       "panel": [
