@@ -119,22 +119,74 @@ export function getFileContentAtCommit(workspacePath: string, commit: string, fi
 /**
  * Detect the base branch for comparison.
  *
- * 2-tier detection (git only, no external CLI dependency):
- *   1. `git merge-base HEAD <defaultBranch>`
- *   2. Fall back to 'main'
+ * Priority:
+ *   1. Upstream tracking branch (e.g. feature → origin/develop → develop)
+ *   2. origin/HEAD symbolic-ref (remote default branch)
+ *   3. Merge-base proximity: find the closest local branch by commit distance
+ *   4. Fall back to first existing of main/master/develop
+ *
+ * Skips the current branch itself to avoid empty diffs.
  */
 export function detectBaseBranch(workspacePath: string): string {
+  const currentBranch = getCurrentBranch(workspacePath);
+
+  // 1. Upstream tracking branch
+  try {
+    const upstream = exec('git rev-parse --abbrev-ref @{upstream}', workspacePath);
+    if (upstream) {
+      const base = upstream.replace(/^origin\//, '');
+      if (base !== currentBranch) return base;
+    }
+  } catch { /* no upstream */ }
+
+  // 2. origin/HEAD (remote default branch)
   const defaultBranch = getDefaultBranch(workspacePath);
-  if (defaultBranch) {
+  if (defaultBranch && defaultBranch !== currentBranch) {
     try {
       exec(`git merge-base HEAD ${defaultBranch}`, workspacePath);
       return defaultBranch;
-    } catch {
-      // merge-base failed
+    } catch { /* merge-base failed */ }
+  }
+
+  // 3. Closest branch by merge-base distance
+  try {
+    const branches = getBranches(workspacePath)
+      .filter(b => b !== currentBranch && !b.startsWith('origin/'));
+    let bestBranch: string | undefined;
+    let bestDistance = Infinity;
+
+    for (const branch of branches) {
+      try {
+        const mergeBase = exec(`git merge-base HEAD ${branch}`, workspacePath);
+        if (!mergeBase) continue;
+        const count = exec(`git rev-list --count ${mergeBase}..HEAD`, workspacePath);
+        const distance = parseInt(count, 10);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestBranch = branch;
+        }
+      } catch { continue; }
     }
+    if (bestBranch) return bestBranch;
+  } catch { /* ignore */ }
+
+  // 4. Fallback: first existing common branch name
+  for (const candidate of ['main', 'master', 'develop']) {
+    try {
+      exec(`git rev-parse --verify ${candidate}`, workspacePath);
+      return candidate;
+    } catch { continue; }
   }
 
   return 'main';
+}
+
+function getCurrentBranch(workspacePath: string): string | undefined {
+  try {
+    return exec('git branch --show-current', workspacePath) || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
