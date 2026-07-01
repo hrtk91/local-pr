@@ -405,6 +405,9 @@ async function handleCommentOrReply(
   const thread = reply.thread;
   const relativePath = path.relative(currentWorkspacePath, thread.uri.fsPath).replace(/\\/g, '/');
   const line = (thread.range?.start.line ?? 0) + 1;
+  const endLine = thread.range && thread.range.end.line !== thread.range.start.line
+    ? thread.range.end.line + 1
+    : undefined;
 
   // Extract commentId from thread if it's a reply
   const rootComment = thread.comments[0] as ClaudeComment | undefined;
@@ -414,6 +417,7 @@ async function handleCommentOrReply(
   const result = service.handleCommentOrReply({
     file: relativePath,
     line,
+    endLine,
     text: reply.text,
     existingCommentId
   });

@@ -239,8 +239,9 @@ export function getCommentsForFile(file: string): ReviewComment[] {
 export type CommentInput = {
   file: string;
   line: number;
+  endLine?: number;
   text: string;
-  existingCommentId?: string; // あればReply、なければ新規
+  existingCommentId?: string;
 };
 
 export function handleCommentOrReply(input: CommentInput): {
@@ -260,8 +261,9 @@ export function handleCommentOrReply(input: CommentInput): {
     const comment = addComment(input.file, input.line, input.text, {
       severity: 'info',
       title,
+      endLine: input.endLine,
       author: 'user',
-      skipCreateThread: true // 必ずスキップ
+      skipCreateThread: true,
     });
 
     return { type: 'comment', success: !!comment, comment };
