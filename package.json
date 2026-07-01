@@ -128,6 +128,11 @@
         "command": "localReview.selectTarget",
         "title": "Local Review: Select Target",
         "icon": "$(target)"
+      },
+      {
+        "command": "localReview.toggleViewMode",
+        "title": "Local Review: Toggle Tree/List View",
+        "icon": "$(list-tree)"
       }
     ],
     "menus": {
@@ -178,19 +183,24 @@
           "group": "navigation@2"
         },
         {
-          "command": "localReview.selectBase",
+          "command": "localReview.toggleViewMode",
           "when": "view == localReview.changedFiles",
           "group": "navigation@1"
         },
         {
-          "command": "localReview.selectTarget",
+          "command": "localReview.selectBase",
           "when": "view == localReview.changedFiles",
           "group": "navigation@2"
         },
         {
-          "command": "localReview.refresh",
+          "command": "localReview.selectTarget",
           "when": "view == localReview.changedFiles",
           "group": "navigation@3"
+        },
+        {
+          "command": "localReview.refresh",
+          "when": "view == localReview.changedFiles",
+          "group": "navigation@4"
         }
       ]
     }

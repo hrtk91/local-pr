@@ -287,6 +287,12 @@ function registerLocalReviewCommands(
   );
 
   context.subscriptions.push(
+    vscode.commands.registerCommand('localReview.toggleViewMode', () => {
+      provider.toggleViewMode();
+    })
+  );
+
+  context.subscriptions.push(
     vscode.commands.registerCommand('localReview.selectBase', async () => {
       const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (!workspacePath) return;

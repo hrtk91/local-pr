@@ -1,8 +1,9 @@
 /**
  * ChangedFilesProvider - TreeDataProvider for sidebar showing changed files from git diff.
  *
- * Shows a flat list of files changed between base and target refs.
- * Clicking a file opens a diff view (base vs working tree).
+ * Supports two view modes (like VSCode Source Control):
+ *   - tree: files grouped by directory hierarchy
+ *   - flat: simple file list
  */
 
 import * as vscode from 'vscode';
@@ -26,26 +27,39 @@ export class GitBaseContentProvider implements vscode.TextDocumentContentProvide
   }
 
   provideTextDocumentContent(uri: vscode.Uri): string {
-    // URI format: local-review-base:<base-ref>/<file-path>
     const fullPath = uri.path;
     const slashIndex = fullPath.indexOf('/');
-    if (slashIndex === -1) {
-      return '';
-    }
+    if (slashIndex === -1) return '';
 
     const commit = fullPath.substring(0, slashIndex);
     const filePath = fullPath.substring(slashIndex + 1);
 
-    const content = getFileContentAtCommit(this.workspacePath, commit, filePath);
-    return content ?? '';
+    return getFileContentAtCommit(this.workspacePath, commit, filePath) ?? '';
   }
 }
 
 // ============================================================
-// ChangedFileItem - TreeItem for a single changed file
+// Tree Item Types
 // ============================================================
 
-class ChangedFileItem extends vscode.TreeItem {
+type TreeElement = DirItem | FileItem;
+
+class DirItem extends vscode.TreeItem {
+  readonly kind = 'dir' as const;
+  readonly dirPath: string;
+  readonly children: TreeElement[] = [];
+
+  constructor(dirName: string, dirPath: string) {
+    super(dirName, vscode.TreeItemCollapsibleState.Expanded);
+    this.dirPath = dirPath;
+    this.iconPath = vscode.ThemeIcon.Folder;
+    this.contextValue = 'directory';
+  }
+}
+
+class FileItem extends vscode.TreeItem {
+  readonly kind = 'file' as const;
+
   constructor(
     public readonly file: ChangedFile,
     private workspacePath: string,
@@ -54,34 +68,31 @@ class ChangedFileItem extends vscode.TreeItem {
     const fileName = path.basename(file.path);
     super(fileName, vscode.TreeItemCollapsibleState.None);
 
-    // Description shows relative directory
-    const dir = path.dirname(file.path);
-    this.description = dir === '.' ? '' : dir;
-
-    // Tooltip
+    this.description = this.getStatusLabel(file.status);
     this.tooltip = `${file.status} ${file.path}`;
-
-    // Icon based on status
     this.iconPath = this.getStatusIcon(file.status);
-
-    // Context value for menus
     this.contextValue = 'changedFile';
-
-    // Command on click -> open diff
+    this.resourceUri = vscode.Uri.file(path.join(workspacePath, file.path));
     this.command = this.buildDiffCommand();
+  }
+
+  private getStatusLabel(status: string): string {
+    switch (status) {
+      case 'A': return 'A';
+      case 'D': return 'D';
+      case 'R': return 'R';
+      case 'M': return 'M';
+      default: return '';
+    }
   }
 
   private getStatusIcon(status: string): vscode.ThemeIcon {
     switch (status) {
-      case 'A':
-        return new vscode.ThemeIcon('diff-added');
-      case 'D':
-        return new vscode.ThemeIcon('diff-removed');
-      case 'R':
-        return new vscode.ThemeIcon('diff-renamed');
+      case 'A': return new vscode.ThemeIcon('diff-added');
+      case 'D': return new vscode.ThemeIcon('diff-removed');
+      case 'R': return new vscode.ThemeIcon('diff-renamed');
       case 'M':
-      default:
-        return new vscode.ThemeIcon('diff-modified');
+      default: return new vscode.ThemeIcon('diff-modified');
     }
   }
 
@@ -89,7 +100,6 @@ class ChangedFileItem extends vscode.TreeItem {
     const filePath = this.file.path;
 
     if (this.file.status === 'D') {
-      // Deleted file: show info message
       return {
         command: 'vscode.open',
         title: 'Show Deleted File',
@@ -99,13 +109,9 @@ class ChangedFileItem extends vscode.TreeItem {
       };
     }
 
-    // Base side URI (content from base commit)
     const baseUri = vscode.Uri.parse(`local-review-base:${this.baseRef}/${filePath}`);
-
-    // Target side: working tree file
     const targetUri = vscode.Uri.file(path.join(this.workspacePath, filePath));
-
-    const title = `${filePath} (${this.baseRef} vs working tree)`;
+    const title = `${filePath} (${this.baseRef.substring(0, 8)} ↔ working tree)`;
 
     return {
       command: 'vscode.diff',
@@ -119,21 +125,20 @@ class ChangedFileItem extends vscode.TreeItem {
 // ChangedFilesProvider - TreeDataProvider
 // ============================================================
 
-export class ChangedFilesProvider implements vscode.TreeDataProvider<ChangedFileItem> {
-  private _onDidChangeTreeData = new vscode.EventEmitter<ChangedFileItem | undefined | void>();
+export class ChangedFilesProvider implements vscode.TreeDataProvider<TreeElement> {
+  private _onDidChangeTreeData = new vscode.EventEmitter<TreeElement | undefined | void>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
   private baseRef: string;
   private targetRef: string;
   private workspacePath: string;
+  private viewMode: 'tree' | 'flat' = 'tree';
 
   constructor(workspacePath: string) {
     this.workspacePath = workspacePath;
     this.baseRef = detectBaseBranch(workspacePath);
     this.targetRef = 'HEAD';
   }
-
-  // --- Public API ---
 
   refresh(): void {
     this._onDidChangeTreeData.fire();
@@ -155,23 +160,95 @@ export class ChangedFilesProvider implements vscode.TreeDataProvider<ChangedFile
     return this.targetRef;
   }
 
-  // --- TreeDataProvider ---
+  toggleViewMode(): void {
+    this.viewMode = this.viewMode === 'tree' ? 'flat' : 'tree';
+    this.refresh();
+  }
 
-  getTreeItem(element: ChangedFileItem): vscode.TreeItem {
+  getViewMode(): 'tree' | 'flat' {
+    return this.viewMode;
+  }
+
+  getTreeItem(element: TreeElement): vscode.TreeItem {
     return element;
   }
 
-  getChildren(): ChangedFileItem[] {
-    if (!this.workspacePath) {
-      return [];
+  getChildren(element?: TreeElement): TreeElement[] {
+    if (!this.workspacePath) return [];
+
+    if (!element) {
+      try {
+        const files = getChangedFiles(this.workspacePath, this.baseRef, this.targetRef);
+        if (this.viewMode === 'flat') {
+          return files.map(f => new FileItem(f, this.workspacePath, this.baseRef));
+        }
+        return this.buildTree(files);
+      } catch (err) {
+        console.error('[Local Review] Failed to get changed files:', err);
+        return [];
+      }
     }
 
-    try {
-      const files = getChangedFiles(this.workspacePath, this.baseRef, this.targetRef);
-      return files.map(file => new ChangedFileItem(file, this.workspacePath, this.baseRef));
-    } catch (err) {
-      console.error('[Local Review] Failed to get changed files:', err);
-      return [];
+    if (element.kind === 'dir') {
+      return element.children;
     }
+
+    return [];
+  }
+
+  private buildTree(files: ChangedFile[]): TreeElement[] {
+    const root: Map<string, DirItem | FileItem> = new Map();
+    const dirMap = new Map<string, DirItem>();
+
+    const getOrCreateDir = (dirPath: string): DirItem => {
+      const existing = dirMap.get(dirPath);
+      if (existing) return existing;
+
+      const dirName = path.basename(dirPath);
+      const dir = new DirItem(dirName, dirPath);
+      dirMap.set(dirPath, dir);
+
+      const parentPath = path.dirname(dirPath);
+      if (parentPath === '.' || parentPath === '') {
+        root.set(dirPath, dir);
+      } else {
+        const parent = getOrCreateDir(parentPath);
+        parent.children.push(dir);
+      }
+
+      return dir;
+    };
+
+    for (const file of files) {
+      const fileItem = new FileItem(file, this.workspacePath, this.baseRef);
+      const dirPath = path.dirname(file.path);
+
+      if (dirPath === '.' || dirPath === '') {
+        root.set(file.path, fileItem);
+      } else {
+        const dir = getOrCreateDir(dirPath);
+        dir.children.push(fileItem);
+      }
+    }
+
+    // Collapse single-child directories (src/api/ → src/api)
+    const collapse = (items: TreeElement[]): TreeElement[] => {
+      return items.map(item => {
+        if (item.kind !== 'dir') return item;
+        item.children.splice(0, item.children.length, ...collapse(item.children));
+        if (item.children.length === 1 && item.children[0].kind === 'dir') {
+          const child = item.children[0];
+          const merged = new DirItem(
+            `${item.label}/${child.label}`,
+            child.dirPath,
+          );
+          merged.children.push(...child.children);
+          return merged;
+        }
+        return item;
+      });
+    };
+
+    return collapse([...root.values()]);
   }
 }
