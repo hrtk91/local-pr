@@ -417,19 +417,17 @@ async function handleCommentOrReply(
 
   if (result.type === 'reply') {
     if (result.success) {
-      uiAdapter.showInfo('Reply added');
-      // Refresh TreeView to show new reply count
+      thread.collapsibleState = vscode.CommentThreadCollapsibleState.Collapsed;
+      thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
       unresolvedCommentsProvider?.refresh();
     } else {
       uiAdapter.showError('Failed to add reply');
     }
   } else {
     if (result.success && result.comment) {
-      // 新規コメント: VSCodeが作った thread を再利用する（dispose しない！）
-      // UIAdapter.populateThread でコメント設定と管理下への登録を行う
       uiAdapter.populateThread(thread, result.comment, 'user');
-      uiAdapter.showInfo('Comment added');
-      // Refresh TreeView to show new comment
+      thread.collapsibleState = vscode.CommentThreadCollapsibleState.Collapsed;
+      thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
       unresolvedCommentsProvider?.refresh();
     }
   }
