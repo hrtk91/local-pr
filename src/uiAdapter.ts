@@ -15,7 +15,7 @@ import { ReviewComment, ClaudeComment } from './types';
 
 export type UIAdapter = {
   // Thread操作
-  createThread: (comment: ReviewComment, author: 'claude' | 'user') => string;
+  createThread: (comment: ReviewComment, author: string) => string;
   disposeThread: (threadId: string) => void;
   disposeAllThreads: () => void;
   disposeThreadsForFile: (file: string) => void;
@@ -30,7 +30,7 @@ export type UIAdapter = {
   getThreadIdsForFile: (file: string) => string[];
 
   // 既存スレッドにコメントを設定して管理下に登録（VSCodeが作った一時スレッドを再利用）
-  populateThread: (thread: vscode.CommentThread, comment: ReviewComment, author: 'claude' | 'user') => string;
+  populateThread: (thread: vscode.CommentThread, comment: ReviewComment, author: string) => string;
 
   // 通知
   showInfo: (message: string) => void;
@@ -58,7 +58,7 @@ export function createVScodeUIAdapter(
       const endLine = comment.endLine ? comment.endLine - 1 : startLine;
       const range = new vscode.Range(startLine, 0, endLine, 0);
 
-      const authorName = author === 'claude' ? 'Local Review' : '👤 User';
+      const authorName = author === 'user' ? 'User' : author;
       const claudeComment = new ClaudeComment(
         comment.message,
         comment.severity,
@@ -77,7 +77,7 @@ export function createVScodeUIAdapter(
 
       if (comment.replies && comment.replies.length > 0) {
         for (const reply of comment.replies) {
-          const replyAuthorName = reply.author === 'claude' ? '🤖 Claude' : '👤 User';
+          const replyAuthorName = reply.author === 'user' ? 'User' : author;
           const replyComment = new ClaudeComment(
             reply.message,
             'info',
@@ -159,9 +159,7 @@ export function createVScodeUIAdapter(
       if (!thread || thread.comments.length === 0) return false;
 
       // Determine author name format (match existing reply format from createThread)
-      const authorName = author.toLowerCase().includes('claude')
-        ? '🤖 Claude'
-        : '👤 User';
+      const authorName = author === 'user' ? 'User' : author;
 
       // Extract targetFile from threadId (format: "file:commentId")
       const colonIndex = threadId.lastIndexOf(':');
@@ -253,7 +251,7 @@ export function createVScodeUIAdapter(
         // Reply が増えている → 新しい Reply を追加
         const newReplies = comment.replies!.slice(currentReplyCount);
         for (const reply of newReplies) {
-          const authorName = reply.author === 'claude' ? '🤖 Claude' : '👤 User';
+          const authorName = reply.author === 'user' ? 'User' : reply.author;
           const colonIndex = threadId.lastIndexOf(':');
           const targetFile = threadId.substring(0, colonIndex);
 
@@ -298,7 +296,7 @@ export function createVScodeUIAdapter(
     populateThread: (thread, comment, author) => {
       // 既存スレッド（VSCodeが作った一時スレッド）にコメントを設定
       const targetFile = comment.file;
-      const authorName = author === 'claude' ? 'Local Review' : '👤 User';
+      const authorName = author === 'user' ? 'User' : author;
 
       const claudeComment = new ClaudeComment(
         comment.message,
@@ -347,7 +345,7 @@ export function createVScodeUIAdapter(
 
 export type MockThread = {
   comment: ReviewComment;
-  author: 'claude' | 'user';
+  author: string;
   comments: { commentId: string; parent: MockThread }[];
 };
 
