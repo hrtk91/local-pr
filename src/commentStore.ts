@@ -53,8 +53,12 @@ export function init(wsPath: string, storageBaseDir?: string) {
   const baseDir = storageBaseDir || os.homedir();
   const hash = computeProjectHash(wsPath);
   storageDir = path.join(baseDir, '.local-review', hash);
-  ensureReviewDir();
-  migrateFromOldStorage(wsPath);
+  try {
+    ensureReviewDir();
+    migrateFromOldStorage(wsPath);
+  } catch (e) {
+    console.error('[Local Review] Storage init failed (continuing with degraded mode):', e);
+  }
 }
 
 export function getWorkspacePath(): string | undefined {
