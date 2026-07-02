@@ -94,24 +94,25 @@ export class ClaudeComment implements vscode.Comment {
   }
 
   formatBody(): vscode.MarkdownString {
-    let icon: string;
+    const isUser = this.author.name?.includes('User');
+    let icon = '';
     if (this.outdated) {
-      icon = '⚪';
+      icon = '⚪ ';
     } else if (this.resolved) {
-      icon = '✅';
-    } else {
-      icon = getSeverityIcon(this.severity);
+      icon = '✅ ';
+    } else if (!isUser) {
+      icon = getSeverityIcon(this.severity) + ' ';
     }
 
     const titleText = this.title ? `**${this.title}**\n\n` : '';
     const formattedMessage = this.rawMessage.replace(/\n/g, '  \n');
 
     if (this.outdated) {
-      return new vscode.MarkdownString(`${icon} ~~*[outdated]*~~ ${titleText}${formattedMessage}`);
+      return new vscode.MarkdownString(`${icon}~~*[outdated]*~~ ${titleText}${formattedMessage}`);
     }
     if (this.resolved) {
-      return new vscode.MarkdownString(`${icon} ~~${titleText}${formattedMessage}~~`);
+      return new vscode.MarkdownString(`${icon}~~${titleText}${formattedMessage}~~`);
     }
-    return new vscode.MarkdownString(`${icon} ${titleText}${formattedMessage}`);
+    return new vscode.MarkdownString(`${icon}${titleText}${formattedMessage}`);
   }
 }
