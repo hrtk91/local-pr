@@ -57,6 +57,12 @@ function gitExec(cmd: string, cwd?: string): string | undefined {
   }
 }
 
+function resolveRemoteRef(ref: string): string {
+  if (ref.includes('/')) return ref;
+  if (gitExec(`git rev-parse --verify origin/${ref}`)) return `origin/${ref}`;
+  return ref;
+}
+
 // ============================================================
 // Base branch auto-detection
 // (mirrors src/gitService.ts detectBaseBranch)
@@ -389,7 +395,7 @@ function cmdStatus() {
   console.log('');
 
   // Changed files summary
-  const mergeBase = gitExec(`git merge-base HEAD ${base}`);
+  const mergeBase = gitExec(`git merge-base HEAD ${resolveRemoteRef(base)}`);
   if (mergeBase) {
     const nameStatus = gitExec(`git diff ${mergeBase} --name-status`);
     if (nameStatus) {
@@ -445,7 +451,7 @@ function cmdDiffFiles(args: string[]) {
   const base = config.baseBranch ?? 'main';
   const jsonMode = args.includes('--json');
 
-  const mergeBase = gitExec(`git merge-base HEAD ${base}`);
+  const mergeBase = gitExec(`git merge-base HEAD ${resolveRemoteRef(base)}`);
   if (!mergeBase) {
     console.error(`Cannot determine merge-base between HEAD and ${base}`);
     process.exit(1);
@@ -487,7 +493,7 @@ function cmdDiff(args: string[]) {
     process.exit(1);
   }
 
-  const mergeBase = gitExec(`git merge-base HEAD ${base}`);
+  const mergeBase = gitExec(`git merge-base HEAD ${resolveRemoteRef(base)}`);
   if (!mergeBase) {
     console.error(`Cannot determine merge-base between HEAD and ${base}`);
     process.exit(1);

@@ -92,8 +92,9 @@ export function parseNameStatus(output: string): ChangedFile[] {
  */
 export function getChangedFiles(workspacePath: string, base: string, target: string): ChangedFile[] {
   try {
-    const mergeBase = exec(`git merge-base HEAD ${base}`, workspacePath);
-    const actualBase = mergeBase || base;
+    const remoteBase = resolveRemoteRef(workspacePath, base);
+    const mergeBase = exec(`git merge-base HEAD ${remoteBase}`, workspacePath);
+    const actualBase = mergeBase || remoteBase;
 
     const cmd = target === 'HEAD'
       ? `git diff --name-status ${actualBase}`
@@ -176,6 +177,20 @@ export function detectBaseBranch(workspacePath: string): string {
   }
 
   return 'main';
+}
+
+/**
+ * Prefer origin/<ref> over local <ref> when available.
+ * Local branches can be stale; remote tracking refs are up to date after fetch.
+ */
+function resolveRemoteRef(workspacePath: string, ref: string): string {
+  if (ref.includes('/')) return ref;
+  try {
+    exec(`git rev-parse --verify origin/${ref}`, workspacePath);
+    return `origin/${ref}`;
+  } catch {
+    return ref;
+  }
 }
 
 function getCurrentBranch(workspacePath: string): string | undefined {

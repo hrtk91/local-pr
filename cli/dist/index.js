@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 "use strict";
 /**
- * Local PR Review CLI
- * コメントの作成・読み取り・更新を行うCLIツール
+ * leview — Local Review CLI
+ * Comment creation, listing, resolution, and git-diff integration.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -43,12 +43,105 @@ const path = __importStar(require("path"));
 const zlib = __importStar(require("zlib"));
 const https = __importStar(require("https"));
 const readline = __importStar(require("readline"));
+const child_process_1 = require("child_process");
+const storage_1 = require("./storage");
 // ============================================================
-// File Operations
+// Git helpers (CLI-local, lightweight)
+// ============================================================
+function gitExec(cmd, cwd) {
+    try {
+        return (0, child_process_1.execSync)(cmd, {
+            cwd: cwd ?? process.cwd(),
+            stdio: ['pipe', 'pipe', 'pipe'],
+        })
+            .toString()
+            .trim();
+    }
+    catch {
+        return undefined;
+    }
+}
+function resolveRemoteRef(ref) {
+    if (ref.includes('/'))
+        return ref;
+    if (gitExec(`git rev-parse --verify origin/${ref}`))
+        return `origin/${ref}`;
+    return ref;
+}
+// ============================================================
+// Base branch auto-detection
+// (mirrors src/gitService.ts detectBaseBranch)
+// ============================================================
+function detectBaseBranch() {
+    const currentBranch = gitExec('git branch --show-current');
+    // 1. Upstream tracking branch
+    try {
+        const upstream = gitExec('git rev-parse --abbrev-ref @{upstream}');
+        if (upstream) {
+            const base = upstream.replace(/^origin\//, '');
+            if (base !== currentBranch)
+                return base;
+        }
+    }
+    catch { /* no upstream */ }
+    // 2. Closest branch by merge-base distance
+    try {
+        const raw = gitExec('git for-each-ref --format=%(refname:short) refs/heads/');
+        if (raw) {
+            const branches = raw
+                .split('\n')
+                .filter(b => b && b !== currentBranch);
+            let bestBranch;
+            let bestDistance = Infinity;
+            for (const branch of branches) {
+                try {
+                    const mergeBase = gitExec(`git merge-base HEAD ${branch}`);
+                    if (!mergeBase)
+                        continue;
+                    const count = gitExec(`git rev-list --count ${mergeBase}..HEAD`);
+                    const distance = parseInt(count ?? '', 10);
+                    if (!isNaN(distance) && distance < bestDistance) {
+                        bestDistance = distance;
+                        bestBranch = branch;
+                    }
+                }
+                catch {
+                    continue;
+                }
+            }
+            if (bestBranch)
+                return bestBranch;
+        }
+    }
+    catch { /* ignore */ }
+    // 3. Fallback
+    for (const candidate of ['main', 'master', 'develop']) {
+        if (gitExec(`git rev-parse --verify ${candidate}`)) {
+            return candidate;
+        }
+    }
+    return 'main';
+}
+// ============================================================
+// Config bootstrap — auto-detect on first run
+// ============================================================
+function ensureConfig() {
+    let config = (0, storage_1.readConfig)();
+    if (!config.baseBranch) {
+        config.baseBranch = detectBaseBranch();
+        config.targetRef = config.targetRef ?? 'HEAD';
+        config.projectName = config.projectName ?? (0, storage_1.getProjectName)();
+        (0, storage_1.ensureStorageDir)();
+        (0, storage_1.writeConfig)(config);
+    }
+    return config;
+}
+// ============================================================
+// File Operations (using ~/.local-review/<hash>/files/)
 // ============================================================
 function getCommentsPath(targetFile) {
     const encoded = encodeURIComponent(targetFile.replace(/\\/g, '/'));
-    return path.join('.review', 'files', `${encoded}.jsonl.gz`);
+    return path.join((0, storage_1.getFilesDir)(), `${encoded}.jsonl.gz`);
 }
 function readComments(targetFile) {
     const filePath = getCommentsPath(targetFile);
@@ -87,15 +180,16 @@ function getLineContent(file, line) {
     }
 }
 function getAllReviewedFiles() {
-    const filesDir = path.join('.review', 'files');
+    const filesDir = (0, storage_1.getFilesDir)();
     if (!fs.existsSync(filesDir))
         return [];
-    return fs.readdirSync(filesDir)
+    return fs
+        .readdirSync(filesDir)
         .filter(f => f.endsWith('.jsonl.gz'))
         .map(f => decodeURIComponent(path.basename(f, '.jsonl.gz')));
 }
 // ============================================================
-// Commands
+// Existing Commands
 // ============================================================
 function cmdAdd(args) {
     const opts = {};
@@ -108,12 +202,12 @@ function cmdAdd(args) {
         console.error('Usage: add --file <path> --line <num> --message <text> [--severity error|warning|info] [--title <text>] [--end-line <num>]');
         process.exit(1);
     }
-    // Validate severity
     const validSeverities = ['error', 'warning', 'info'];
     if (!validSeverities.includes(severity)) {
         console.error(`Invalid severity: ${severity}. Must be one of: ${validSeverities.join(', ')}`);
         process.exit(1);
     }
+    (0, storage_1.ensureStorageDir)();
     const comments = readComments(file);
     const maxId = comments.reduce((max, c) => Math.max(max, parseInt(c.id) || 0), 0);
     const newComment = {
@@ -143,7 +237,6 @@ function cmdList(args) {
     }
     const { file, active, format = 'text' } = opts;
     if (file) {
-        // 特定ファイルのコメント
         let comments = readComments(file);
         if (active === 'true') {
             comments = comments.filter(c => !c.resolved && !c.outdated);
@@ -156,7 +249,6 @@ function cmdList(args) {
         }
     }
     else {
-        // 全ファイル
         const files = getAllReviewedFiles();
         const allComments = [];
         for (const f of files) {
@@ -184,13 +276,13 @@ function printComments(file, comments) {
     console.log(`\n=== ${file} (${comments.length} comments) ===`);
     for (const c of comments) {
         const status = c.resolved ? '[RESOLVED]' : c.outdated ? '[OUTDATED]' : '';
-        const icon = c.severity === 'error' ? '🔴' : c.severity === 'warning' ? '🟡' : '🟢';
+        const icon = c.severity === 'error' ? '!!' : c.severity === 'warning' ? '! ' : '  ';
         console.log(`  #${c.id} ${icon} L${c.line}${c.endLine ? `-${c.endLine}` : ''} ${status}`);
         if (c.title)
             console.log(`     ${c.title}`);
         console.log(`     ${c.message.split('\n')[0]}${c.message.includes('\n') ? '...' : ''}`);
         if (c.replies?.length) {
-            console.log(`     💬 ${c.replies.length} replies`);
+            console.log(`     ${c.replies.length} replies`);
         }
     }
 }
@@ -260,6 +352,177 @@ function cmdDelete(args) {
     console.log(`Deleted comment #${id} from ${file}`);
 }
 // ============================================================
+// New Commands
+// ============================================================
+function cmdStatus() {
+    const config = ensureConfig();
+    const projectName = config.projectName ?? (0, storage_1.getProjectName)();
+    const base = config.baseBranch ?? 'main';
+    const target = config.targetRef ?? 'HEAD';
+    // Current branch + short SHA
+    const branch = gitExec('git branch --show-current') ?? 'detached';
+    const shortSha = gitExec('git rev-parse --short HEAD') ?? '???????';
+    const targetDisplay = target === 'HEAD' ? `HEAD (${branch} @ ${shortSha})` : target;
+    console.log(`Project: ${projectName}`);
+    console.log(`Base:    ${base}`);
+    console.log(`Target:  ${targetDisplay}`);
+    console.log('');
+    // Changed files summary
+    const mergeBase = gitExec(`git merge-base HEAD ${resolveRemoteRef(base)}`);
+    if (mergeBase) {
+        const nameStatus = gitExec(`git diff ${mergeBase} --name-status`);
+        if (nameStatus) {
+            const lines = nameStatus.split('\n').filter(Boolean);
+            let modified = 0, added = 0, deleted = 0, other = 0;
+            for (const line of lines) {
+                const status = line.charAt(0);
+                if (status === 'M')
+                    modified++;
+                else if (status === 'A')
+                    added++;
+                else if (status === 'D')
+                    deleted++;
+                else
+                    other++;
+            }
+            const total = modified + added + deleted + other;
+            console.log(`Changed files: ${total}`);
+            const parts = [];
+            if (modified)
+                parts.push(`Modified: ${modified}`);
+            if (added)
+                parts.push(`Added: ${added}`);
+            if (deleted)
+                parts.push(`Deleted: ${deleted}`);
+            if (other)
+                parts.push(`Other: ${other}`);
+            console.log(`  ${parts.join(', ')}`);
+        }
+        else {
+            console.log('Changed files: 0');
+        }
+    }
+    else {
+        console.log('Changed files: (unable to compute merge-base)');
+    }
+    console.log('');
+    // Comment counts
+    const files = getAllReviewedFiles();
+    let unresolved = 0;
+    let resolved = 0;
+    for (const f of files) {
+        const comments = readComments(f);
+        for (const c of comments) {
+            if (c.resolved)
+                resolved++;
+            else
+                unresolved++;
+        }
+    }
+    console.log(`Comments: ${unresolved} unresolved, ${resolved} resolved`);
+}
+function cmdDiffFiles(args) {
+    const config = ensureConfig();
+    const base = config.baseBranch ?? 'main';
+    const jsonMode = args.includes('--json');
+    const mergeBase = gitExec(`git merge-base HEAD ${resolveRemoteRef(base)}`);
+    if (!mergeBase) {
+        console.error(`Cannot determine merge-base between HEAD and ${base}`);
+        process.exit(1);
+    }
+    const nameStatus = gitExec(`git diff ${mergeBase} --name-status`);
+    if (!nameStatus) {
+        if (jsonMode) {
+            console.log('[]');
+        }
+        return;
+    }
+    const entries = nameStatus
+        .split('\n')
+        .filter(Boolean)
+        .map(line => {
+        const [status, ...pathParts] = line.split('\t');
+        return { status: status.charAt(0), path: pathParts.join('\t') };
+    });
+    if (jsonMode) {
+        console.log(JSON.stringify(entries, null, 2));
+    }
+    else {
+        for (const entry of entries) {
+            console.log(`${entry.status}  ${entry.path}`);
+        }
+    }
+}
+function cmdDiff(args) {
+    const config = ensureConfig();
+    const base = config.baseBranch ?? 'main';
+    // Find the file argument (first arg that doesn't start with --)
+    const file = args.find(a => !a.startsWith('--'));
+    if (!file) {
+        console.error('Usage: diff <file>');
+        process.exit(1);
+    }
+    const mergeBase = gitExec(`git merge-base HEAD ${resolveRemoteRef(base)}`);
+    if (!mergeBase) {
+        console.error(`Cannot determine merge-base between HEAD and ${base}`);
+        process.exit(1);
+    }
+    try {
+        const output = (0, child_process_1.execSync)(`git diff ${mergeBase} -- ${file}`, {
+            stdio: ['pipe', 'pipe', 'pipe'],
+        }).toString();
+        process.stdout.write(output);
+    }
+    catch (e) {
+        // git diff exits 1 when there are differences — that's normal
+        if (e && typeof e === 'object' && 'stdout' in e) {
+            process.stdout.write(e.stdout);
+        }
+    }
+}
+function cmdConfig(args) {
+    // Filter out flags
+    const positional = args.filter(a => !a.startsWith('--'));
+    if (positional.length === 0) {
+        // Print all config
+        const config = ensureConfig();
+        console.log(JSON.stringify(config, null, 2));
+        return;
+    }
+    if (positional.length === 1) {
+        // Print single key
+        const config = ensureConfig();
+        const key = normalizeConfigKey(positional[0]);
+        const value = config[key];
+        if (value !== undefined) {
+            console.log(value);
+        }
+        else {
+            console.error(`Unknown config key: ${positional[0]}`);
+            process.exit(1);
+        }
+        return;
+    }
+    // Set key=value
+    const key = normalizeConfigKey(positional[0]);
+    const value = positional[1];
+    const config = ensureConfig();
+    config[key] = value;
+    (0, storage_1.writeConfig)(config);
+    console.log(`Set ${key} = ${value}`);
+}
+function normalizeConfigKey(key) {
+    // Accept shorthand: base → baseBranch, target → targetRef
+    const aliases = {
+        base: 'baseBranch',
+        target: 'targetRef',
+        projectName: 'projectName',
+        baseBranch: 'baseBranch',
+        targetRef: 'targetRef',
+    };
+    return aliases[key] ?? key;
+}
+// ============================================================
 // Install Skill
 // ============================================================
 function getSkillDirectories(scope = 'all') {
@@ -267,7 +530,6 @@ function getSkillDirectories(scope = 'all') {
     const candidates = ['.claude', '.cursor', '.codex'];
     const dirs = [];
     if (scope === 'local' || scope === 'all') {
-        // Check current directory
         for (const dir of candidates) {
             const localPath = path.join(process.cwd(), dir);
             if (fs.existsSync(localPath)) {
@@ -276,7 +538,6 @@ function getSkillDirectories(scope = 'all') {
         }
     }
     if (scope === 'global' || scope === 'all') {
-        // Check home directory
         for (const dir of candidates) {
             const globalPath = path.join(home, dir);
             if (fs.existsSync(globalPath)) {
@@ -288,9 +549,8 @@ function getSkillDirectories(scope = 'all') {
 }
 function downloadFile(url) {
     return new Promise((resolve, reject) => {
-        https.get(url, (res) => {
+        https.get(url, res => {
             if (res.statusCode === 302 || res.statusCode === 301) {
-                // Follow redirect
                 if (res.headers.location) {
                     downloadFile(res.headers.location).then(resolve).catch(reject);
                     return;
@@ -301,23 +561,27 @@ function downloadFile(url) {
                 return;
             }
             let data = '';
-            res.on('data', (chunk) => { data += chunk; });
-            res.on('end', () => { resolve(data); });
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+            res.on('end', () => {
+                resolve(data);
+            });
         }).on('error', reject);
     });
 }
 function askUserChoice(question, choices) {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
         const rl = readline.createInterface({
             input: process.stdin,
-            output: process.stdout
+            output: process.stdout,
         });
         console.log(question);
         choices.forEach((choice, i) => {
             console.log(`  ${i + 1}. ${choice}`);
         });
         console.log('');
-        rl.question('Select (number): ', (answer) => {
+        rl.question('Select (number): ', answer => {
             rl.close();
             const num = parseInt(answer.trim());
             if (num >= 1 && num <= choices.length) {
@@ -331,17 +595,16 @@ function askUserChoice(question, choices) {
     });
 }
 async function cmdInstallSkill(args) {
-    // Parse options
     const opts = {};
     for (let i = 0; i < args.length; i += 2) {
         if (args[i]?.startsWith('--')) {
             opts[args[i].replace(/^--/, '')] = args[i + 1] || 'true';
         }
     }
-    console.log('🔍 Checking for skill directories...');
+    console.log('Checking for skill directories...');
     const scope = (opts['scope'] || 'all');
     if (!['local', 'global', 'all'].includes(scope)) {
-        console.error('❌ Invalid --scope value. Must be one of: local, global, all');
+        console.error('Invalid --scope value. Must be one of: local, global, all');
         process.exit(1);
     }
     const skillDirs = getSkillDirectories(scope);
@@ -351,82 +614,73 @@ async function cmdInstallSkill(args) {
             : scope === 'global'
                 ? 'home directory (~/.claude, ~/.cursor, ~/.codex)'
                 : 'current or home directory';
-        console.error(`❌ No skill directories found in ${scopeMsg}`);
+        console.error(`No skill directories found in ${scopeMsg}`);
         process.exit(1);
     }
-    // Display found directories with scope
     const displayDirs = skillDirs.map(d => `${path.basename(d.path)} (${d.scope})`).join(', ');
-    console.log(`✅ Found: ${displayDirs}`);
+    console.log(`Found: ${displayDirs}`);
     console.log('');
     let selectedDirs;
-    // Check for --all flag
     if (opts['all'] === 'true') {
         selectedDirs = skillDirs.map(d => d.path);
         console.log('Installing to all directories...');
     }
-    // Check for --dir option
     else if (opts['dir']) {
         const requestedDir = opts['dir'];
         const matchedDir = skillDirs.find(d => path.basename(d.path) === requestedDir);
         if (!matchedDir) {
-            console.error(`❌ Directory '${requestedDir}' not found. Available: ${skillDirs.map(d => path.basename(d.path)).join(', ')}`);
+            console.error(`Directory '${requestedDir}' not found. Available: ${skillDirs.map(d => path.basename(d.path)).join(', ')}`);
             process.exit(1);
         }
         selectedDirs = [matchedDir.path];
         console.log(`Installing to ${requestedDir} (${matchedDir.scope})...`);
     }
-    // If only one directory exists, use it automatically
     else if (skillDirs.length === 1) {
         selectedDirs = [skillDirs[0].path];
         console.log(`Installing to ${path.basename(skillDirs[0].path)} (${skillDirs[0].scope})...`);
     }
-    // Multiple directories found - check if stdin is available
     else if (process.stdin.isTTY) {
-        // Interactive mode - ask user
         const choices = [
             ...skillDirs.map(d => `${path.basename(d.path)} (${d.scope})`),
-            'All of the above'
+            'All of the above',
         ];
         const choice = await askUserChoice('Which directory should the skill be installed to?', choices);
         if (choice === skillDirs.length) {
-            // "All of the above"
             selectedDirs = skillDirs.map(d => d.path);
         }
         else {
             selectedDirs = [skillDirs[choice].path];
         }
     }
-    // Non-interactive mode - default to global .claude, or first available
     else {
-        const defaultDir = skillDirs.find(d => path.basename(d.path) === '.claude' && d.scope === 'global') || skillDirs[0];
+        const defaultDir = skillDirs.find(d => path.basename(d.path) === '.claude' && d.scope === 'global') ??
+            skillDirs[0];
         selectedDirs = [defaultDir.path];
         console.log(`Non-interactive mode: defaulting to ${path.basename(defaultDir.path)} (${defaultDir.scope})`);
-        console.log(`Tip: Use --scope <local|global|all>, --dir <name>, or --all to specify installation target`);
+        console.log('Tip: Use --scope <local|global|all>, --dir <name>, or --all to specify installation target');
     }
     console.log('');
-    console.log('📥 Downloading skill from GitHub...');
+    console.log('Downloading skill from GitHub...');
     const skillUrl = 'https://raw.githubusercontent.com/hrtk91/local-pr/master/cli/skills/reviewing-locally/SKILL.md';
     try {
         const content = await downloadFile(skillUrl);
         for (const baseDir of selectedDirs) {
             const skillPath = path.join(baseDir, 'skills', 'reviewing-locally');
             const skillFile = path.join(skillPath, 'SKILL.md');
-            // Create directory
             if (!fs.existsSync(skillPath)) {
                 fs.mkdirSync(skillPath, { recursive: true });
             }
-            // Write file
             fs.writeFileSync(skillFile, content, 'utf-8');
-            console.log(`✅ Installed to ${path.relative(process.env.HOME || '', skillFile)}`);
+            console.log(`Installed to ${path.relative(process.env.HOME || '', skillFile)}`);
         }
         console.log('');
-        console.log('🎉 Skill installation complete!');
+        console.log('Skill installation complete!');
         console.log('');
         console.log('Usage in Claude Code/Cursor:');
         console.log('  /reviewing-locally');
     }
     catch (error) {
-        console.error('❌ Failed to install skill:', error instanceof Error ? error.message : error);
+        console.error('Failed to install skill:', error instanceof Error ? error.message : error);
         process.exit(1);
     }
 }
@@ -451,13 +705,29 @@ const [, , command, ...args] = process.argv;
         case 'delete':
             cmdDelete(args);
             break;
+        case 'status':
+            cmdStatus();
+            break;
+        case 'diff-files':
+            cmdDiffFiles(args);
+            break;
+        case 'diff':
+            cmdDiff(args);
+            break;
+        case 'config':
+            cmdConfig(args);
+            break;
         case 'install-skill':
             await cmdInstallSkill(args);
             break;
         default:
-            console.log(`Local PR Review CLI
+            console.log(`leview — Local Review CLI
 
 Commands:
+  status        Show project status and comment summary
+  diff-files    List changed files (vs base branch)
+  diff <file>   Show diff for a specific file
+  config        View or set project configuration
   add           Add a new comment
   list          List comments
   resolve       Mark comment as resolved
@@ -466,17 +736,17 @@ Commands:
   install-skill Install Claude Code skill
 
 Examples:
-  npx hrtk91/local-pr add --file src/App.tsx --line 42 --message "Add null check" --severity warning
-  npx hrtk91/local-pr list --active true
-  npx hrtk91/local-pr list --file src/App.tsx --format json
-  npx hrtk91/local-pr resolve --file src/App.tsx --id 1
-  npx hrtk91/local-pr reply --file src/App.tsx --id 1 --message "Fixed"
-  npx hrtk91/local-pr delete --file src/App.tsx --id 1
-  npx hrtk91/local-pr install-skill
-  npx hrtk91/local-pr install-skill --scope global
-  npx hrtk91/local-pr install-skill --scope local
-  npx hrtk91/local-pr install-skill --dir .claude
-  npx hrtk91/local-pr install-skill --all
+  leview status
+  leview diff-files --json
+  leview diff src/App.tsx
+  leview config base develop
+  leview add --file src/App.tsx --line 42 --message "Add null check" --severity warning
+  leview list --active true
+  leview list --file src/App.tsx --format json
+  leview resolve --file src/App.tsx --id 1
+  leview reply --file src/App.tsx --id 1 --message "Fixed"
+  leview delete --file src/App.tsx --id 1
+  leview install-skill
 `);
     }
 })();
