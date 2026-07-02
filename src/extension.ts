@@ -66,6 +66,18 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Early return if no workspace - but TreeView is still registered above
   if (!workspaceFolder) {
+    const noopCommands = [
+      'localReview.refreshComments', 'localReview.clear', 'localReview.listFiles',
+      'localReview.showFileHistory', 'localReview.createComment', 'localReview.replyComment',
+      'localReview.deleteComment', 'localReview.resolveComment', 'localReview.editComment',
+      'localReview.saveComment', 'localReview.cancelEdit', 'localReview.jumpToComment',
+      'localReview.refreshUnresolvedView', 'localReview.toggleOutdatedFilter',
+      'localReview.refresh', 'localReview.toggleViewMode', 'localReview.selectBase',
+      'localReview.selectTarget',
+    ];
+    for (const cmd of noopCommands) {
+      context.subscriptions.push(vscode.commands.registerCommand(cmd, () => {}));
+    }
     return;
   }
 
