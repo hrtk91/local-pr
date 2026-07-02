@@ -149,8 +149,8 @@ export function detectBaseBranch(workspacePath: string): string {
   //    This correctly handles worktree/detached HEAD where upstream is unavailable.
   //    Includes all local branches to find the true parent (e.g. develop over main).
   try {
-    const branches = getBranches(workspacePath)
-      .filter(b => b !== currentBranch && !b.startsWith('origin/'));
+    const { local } = getBranches(workspacePath);
+    const branches = local.filter(b => b !== currentBranch);
     let bestBranch: string | undefined;
     let bestDistance = Infinity;
 
@@ -219,17 +219,24 @@ export function getHeadDescription(workspacePath: string): string {
 /**
  * Get list of local branches.
  */
-export function getBranches(workspacePath: string): string[] {
+export function getBranches(workspacePath: string): { local: string[]; remote: string[] } {
+  const local: string[] = [];
+  const remote: string[] = [];
   try {
     const output = exec(
-      'git branch --format="%(refname:short)"',
+      'git branch -a --format="%(refname:short)"',
       workspacePath,
     );
-    if (!output) return [];
-    return output.split('\n').map(b => b.trim()).filter(Boolean);
-  } catch {
-    return [];
-  }
+    if (!output) return { local, remote };
+    for (const b of output.split('\n').map(s => s.trim()).filter(Boolean)) {
+      if (b.startsWith('origin/') && !b.includes('HEAD')) {
+        remote.push(b);
+      } else if (!b.includes('/')) {
+        local.push(b);
+      }
+    }
+  } catch { /* ignore */ }
+  return { local, remote };
 }
 
 /**

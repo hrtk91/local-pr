@@ -318,33 +318,9 @@ function registerLocalReviewCommands(
       const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (!workspacePath) return;
 
-      const items: vscode.QuickPickItem[] = [];
-
-      // Add branches
-      try {
-        const branches = getBranches(workspacePath);
-        for (const branch of branches) {
-          items.push({ label: branch, description: 'branch' });
-        }
-      } catch { /* ignore */ }
-
-      // Add recent commits
-      try {
-        const commits = getRecentCommits(workspacePath);
-        for (const commit of commits) {
-          items.push({
-            label: commit.hash.substring(0, 8),
-            description: commit.message,
-          });
-        }
-      } catch { /* ignore */ }
-
-      const selected = await vscode.window.showQuickPick(items, {
-        placeHolder: `Base ref (current: ${provider.getBaseRef()})`,
-      });
-
+      const selected = await showRefPicker(workspacePath, `Base ref (current: ${provider.getBaseRef()})`);
       if (selected) {
-        provider.setBaseRef(selected.label);
+        provider.setBaseRef(selected);
         provider.refresh();
         updateDescription();
       }
@@ -356,40 +332,45 @@ function registerLocalReviewCommands(
       const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (!workspacePath) return;
 
-      const items: vscode.QuickPickItem[] = [
-        { label: 'HEAD', description: 'current commit' },
-      ];
-
-      // Add branches
-      try {
-        const branches = getBranches(workspacePath);
-        for (const branch of branches) {
-          items.push({ label: branch, description: 'branch' });
-        }
-      } catch { /* ignore */ }
-
-      // Add recent commits
-      try {
-        const commits = getRecentCommits(workspacePath);
-        for (const commit of commits) {
-          items.push({
-            label: commit.hash.substring(0, 8),
-            description: commit.message,
-          });
-        }
-      } catch { /* ignore */ }
-
-      const selected = await vscode.window.showQuickPick(items, {
-        placeHolder: `Target ref (current: ${provider.getTargetRef()})`,
-      });
-
+      const selected = await showRefPicker(workspacePath, `Target ref (current: ${provider.getTargetRef()})`, true);
       if (selected) {
-        provider.setTargetRef(selected.label);
+        provider.setTargetRef(selected);
         provider.refresh();
         updateDescription();
       }
     })
   );
+}
+
+async function showRefPicker(workspacePath: string, placeHolder: string, includeHead = false): Promise<string | undefined> {
+  const items: vscode.QuickPickItem[] = [];
+
+  if (includeHead) {
+    items.push({ label: 'HEAD', description: 'working tree' });
+  }
+
+  const { local, remote } = getBranches(workspacePath);
+
+  if (local.length > 0) {
+    items.push({ label: 'Local Branches', kind: vscode.QuickPickItemKind.Separator });
+    for (const b of local) items.push({ label: b });
+  }
+
+  if (remote.length > 0) {
+    items.push({ label: 'Remote Branches', kind: vscode.QuickPickItemKind.Separator });
+    for (const b of remote) items.push({ label: b });
+  }
+
+  const commits = getRecentCommits(workspacePath);
+  if (commits.length > 0) {
+    items.push({ label: 'Recent Commits', kind: vscode.QuickPickItemKind.Separator });
+    for (const c of commits) {
+      items.push({ label: c.hash.substring(0, 8), description: c.message });
+    }
+  }
+
+  const selected = await vscode.window.showQuickPick(items, { placeHolder });
+  return selected?.label;
 }
 
 // ============================================================
