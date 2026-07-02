@@ -120,7 +120,15 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Create UI Adapter and initialize service
   const uiAdapter = createVScodeUIAdapter(commentController, currentWorkspacePath);
-  service.init(uiAdapter, currentWorkspacePath);
+
+  // Register commands BEFORE service.init (init may fail on storage creation)
+  registerCommands(context, uiAdapter);
+
+  try {
+    service.init(uiAdapter, currentWorkspacePath);
+  } catch (e) {
+    console.error('[Local Review] Service init failed:', e);
+  }
 
   const refreshOutdatedForFile = (fsPath: string) => {
     const relativePath = path.relative(currentWorkspacePath!, fsPath).replace(/\\/g, '/');
@@ -167,8 +175,6 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // Register commands
-  registerCommands(context, uiAdapter);
 }
 
 function registerCommands(context: vscode.ExtensionContext, uiAdapter: ReturnType<typeof createVScodeUIAdapter>) {
