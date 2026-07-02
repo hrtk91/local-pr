@@ -94,7 +94,7 @@ export class ClaudeComment implements vscode.Comment {
   }
 
   formatBody(): vscode.MarkdownString {
-    const isUser = this.author.name?.includes('User');
+    const isUser = this.author?.name?.includes('User');
     let icon = '';
     if (this.outdated) {
       icon = '⚪ ';
