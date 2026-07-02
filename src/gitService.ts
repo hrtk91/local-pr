@@ -113,8 +113,9 @@ export function getChangedFiles(workspacePath: string, base: string, target: str
  */
 export function getFileContentAtCommit(workspacePath: string, commit: string, filePath: string): string | undefined {
   try {
+    const ref = resolveRemoteRef(workspacePath, commit);
     return execSync(
-      `git show ${commit}:${filePath}`,
+      `git show ${ref}:${filePath}`,
       { cwd: workspacePath, encoding: 'utf-8', timeout: 10_000 }
     );
   } catch {
