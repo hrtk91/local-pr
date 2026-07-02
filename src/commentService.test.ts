@@ -415,16 +415,15 @@ describe('handleCommentOrReply - CRITICAL branching logic', () => {
     expect(result.success).toBe(false);
   });
 
-  it('should truncate title to 50 chars for new comment', () => {
-    const longText = 'A'.repeat(100) + '\nSecond line';
+  it('should not auto-generate title for user comments', () => {
     const result = service.handleCommentOrReply({
       file: 'src/App.tsx',
       line: 10,
-      text: longText,
+      text: 'Some user comment',
       existingCommentId: undefined
     });
 
-    expect(result.comment!.title).toBe('A'.repeat(50) + '...');
+    expect(result.comment!.title).toBeUndefined();
   });
 });
 

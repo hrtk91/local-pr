@@ -143,7 +143,7 @@ export function addComment(
     diff_hunk: options.diff_hunk,
     message,
     severity: options.severity || 'info',
-    title: options.title || 'User Comment',
+    title: options.title,
     resolved: false,
     outdated: false,
     author: options.author || 'claude',
@@ -254,13 +254,8 @@ export function handleCommentOrReply(input: CommentInput): {
     const success = addReply(input.file, input.existingCommentId, 'user', input.text);
     return { type: 'reply', success };
   } else {
-    // New comment - UIスレッド作成はスキップ（呼び出し側で populateThread する）
-    const firstLine = input.text.split('\n')[0].trim();
-    const title = firstLine.length > 50 ? firstLine.substring(0, 50) + '...' : firstLine;
-
     const comment = addComment(input.file, input.line, input.text, {
       severity: 'info',
-      title,
       endLine: input.endLine,
       author: 'user',
       skipCreateThread: true,
